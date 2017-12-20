@@ -655,39 +655,39 @@ layer {
   top: "conv5_2"
 }
 
-layers {
+layer {
   bottom: "conv5_2"
   top: "conv5_3"
   name: "conv5_3"
-  type: CONVOLUTION
+  type: "Convolution"
   convolution_param {
     num_output: 512
     pad: 1
     kernel_size: 3
   }
 }
-layers {
+layer {
   bottom: "conv5_3"
   top: "conv5_3"
   name: "relu5_3"
-  type: RELU
+  type: "ReLU"
 }
-layers {
+layer {
   bottom: "conv5_3"
   top: "conv5_4"
   name: "conv5_4"
-  type: CONVOLUTION
+  type: "Convolution"
   convolution_param {
     num_output: 512
     pad: 1
     kernel_size: 3
   }
 }
-layers {
+layer {
   bottom: "conv5_4"
   top: "conv5_4"
   name: "relu5_4"
-  type: RELU
+  type: "ReLU"
 }
 
 
@@ -703,8 +703,8 @@ layer {
   convolution_param {
     num_output: 256
     kernel_size: 1
-    weight_filter { type: "gaussian" std: 0.01 }
-    bias_filter { type: "constant" value: 0.5 }
+    weight_filler { type: "gaussian" std: 0.01 }
+    bias_filler { type: "constant" value: 0.5 }
   }
 }
 
