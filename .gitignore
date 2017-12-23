@@ -1,2 +1,4 @@
 /cocoapi/annotations/*
 /cocoapi/results/*
+*.pyc
+.ipynb_checkpoints
