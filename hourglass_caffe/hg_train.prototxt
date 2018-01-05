@@ -1,0 +1,8367 @@
+
+## ========================== input: now is just placeholder =============================================
+layer{
+ 	name: "image"
+  	type: "Input"
+  	top: "image"
+  	input_param{ 
+  		shape: { dim: 1 dim: 3 dim: 256 dim: 256 } 
+  	}
+}
+layer{
+	name: "gtMaps"
+	type: "Input"
+	top: "gtMaps"
+	input_param{
+		shape: { dim: 1 dim: 16 dim: 64 dim: 64 } 
+		## Ground Truth Map: batchSize x nStack x outDim x 64 x 64
+	}
+}
+
+
+## =========================== preprocessing ====================================== ##
+
+layer {
+	name: "conv1_prepro"
+	type: "Convolution"
+	bottom: "image" 			# 256x256
+	top: "conv1_prepro" 		# 128x128
+	# learning rate and decay multipliers for the filters
+    param { lr_mult: 1 decay_mult: 1 }
+    # learning rate and decay multipliers for the biases
+    param { lr_mult: 2 decay_mult: 0 }
+    convolution_param{
+    	num_output: 64
+    	kernel_size: 6
+    	stride: 2
+    	pad: 2
+    	weight_filler{
+    		type: "gaussian"
+    		std: 0.01
+    	}
+    	bias_filler{
+    		type: "constant"
+    		value: 0
+    	}
+    }
+}
+layer{
+	name: "bn1_prepro"
+	type: "BatchNorm"
+	bottom: "conv1_prepro"
+	top: "bn1_prepro"
+	batch_norm_param{
+		use_global_stats: true
+		moving_average_fraction: 0.9
+		eps: 1e-5
+	}
+}
+
+## ==== residual block 1 
+layer{
+	name: 'skip_rb1_prepro'
+	type: "Convolution"
+	bottom: "bn1_prepro"
+	top: "skip_rb1_prepro"
+	# learning rate and decay multipliers for the filters
+    param { lr_mult: 1 decay_mult: 1 }
+    # learning rate and decay multipliers for the biases
+    param { lr_mult: 2 decay_mult: 0 }
+    convolution_param{
+    	num_output: 128
+    	kernel_size: 1
+    	stride: 1
+    	weight_filler{
+    		type: "gaussian"
+    		std: 0.01
+    	}
+    	bias_filler{
+    		type: "constant"
+    		value: 0
+    	}
+    }
+}
+layer{
+	name: "bn1_rb1_prepro"
+	type: "BatchNorm"
+	bottom: "bn1_prepro"
+	top: "bn1_rb1_prepro"
+	batch_norm_param{
+		use_global_stats: true
+		moving_averaging_fraction: 0.9
+		eps: 1e-5
+	}
+}
+layer{
+	name: "conv1_rb1_prepro"
+	type: "Convolution"
+	bottom: "bn1_rb1_prepro"
+	top: "conv1_rb1_prepro"
+	param{lr_mult: 1 decay_mult: 1}
+	param{lr_mult: 2 decay_mult: 0}
+	convolution_param{
+		num_output: 64
+		kernel_size: 1
+		stride: 1
+		weight_filler{
+			type: "gaussian"
+			std: 0.01
+		}
+		bias_filler{
+			type: "constant"
+			value: 0
+		}
+	}
+}
+layer{
+	name: "bn2_rb1_prepro"
+	type: "BatchNorm"
+	bottom: "conv1_rb1_prepro"
+	top: "bn2_rb1_prepro"
+	batch_norm_param{
+		use_global_stats: true
+		moving_averaging_fraction: 0.9
+		eps: 1e-5
+	}
+}
+layer{
+	name: "conv2_rb1_prepro"
+	type: "Convolution"
+	bottom: "bn2_rb1_prepro"
+	top: "conv2_rb1_prepro"
+	param{lr_mult: 1 decay_mult: 1}
+	param{lr_mult: 2 decay_mult: 0}
+	convolution_param{
+		num_output: 64
+		kernel_size: 3
+		stride: 1
+		pad: 1
+		weight_filler{
+			type: "gaussian"
+			std: 0.01
+		}
+		bias_filler{
+			type: "constant"
+			value: 0
+		}
+	}
+}
+layer{
+	name: "bn3_rb1_prepro"
+	type: "BatchNorm"
+	bottom: "conv2_rb1_prepro"
+	top: "bn3_rb1_prepro"
+	batch_norm_param{
+		use_global_stats: true
+		moving_averaging_fraction: 0.9
+		eps: 1e-5
+	}
+}
+layer{
+	name: "conv3_rb1_prepro"
+	type: "Convolution"
+	bottom: "bn3_rb1_prepro"
+	top: "conv3_rb1_prepro"
+	param{lr_mult: 1 decay_mult: 1}
+	param{lr_mult: 2 decay_mult: 0}
+	convolution_param{
+		num_output: 128
+		kernel_size: 1
+		stride: 1
+		weight_filler{
+			type: "gaussian"
+			std: 0.01
+		}
+		bias_filler{
+			type: "constant"
+			value: 0
+		}
+	}
+}
+layer{
+	name: "elt_rb1_prepro"
+	type: "Eltwise"
+	bottom: "conv3_rb1_prepro"
+	bottom: "skip_rb1_prepro"
+	top: "elt_rb1_prepro"
+	eltwise_param{
+		operation: SUM
+	}
+}
+
+layer{
+	name: "pool1_rb1_prepro"
+	type: "Pooling"
+	bottom: "elt_rb1_prepro"
+	top: "pool1_rb1_prepro"
+	pooling_param{
+		pool: MAX
+		kernel_size: 2
+		stride: 2
+	}
+}
+
+## ==== residual block 2
+layer{
+	name: 'skip_rb2_prepro'
+	type: "Convolution"
+	bottom: "pool1_rb1_prepro"
+	top: "skip_rb2_prepro"
+    param { lr_mult: 1 decay_mult: 1 }
+    param { lr_mult: 2 decay_mult: 0 }
+    convolution_param{
+    	num_output: 128 ## nFeat / 2
+    	kernel_size: 1
+    	stride: 1
+    	weight_filler{
+    		type: "gaussian"
+    		std: 0.01
+    	}
+    	bias_filler{
+    		type: "constant"
+    		value: 0
+    	}
+    }
+}
+layer{
+	name: "bn1_rb2_prepro"
+	type: "BatchNorm"
+	bottom: "pool1_rb1_prepro"
+	top: "bn1_rb2_prepro"
+	batch_norm_param{
+		use_global_stats: true
+		moving_averaging_fraction: 0.9
+		eps: 1e-5
+	}
+}
+layer{
+	name: "conv1_rb2_prepro"
+	type: "Convolution"
+	bottom: "bn1_rb2_prepro"
+	top: "conv1_rb2_prepro"
+	param{lr_mult: 1 decay_mult: 1}
+	param{lr_mult: 2 decay_mult: 0}
+	convolution_param{
+		num_output: 64
+		kernel_size: 1
+		stride: 1
+		weight_filler{
+			type: "gaussian"
+			std: 0.01
+		}
+		bias_filler{
+			type: "constant"
+			value: 0
+		}
+	}
+}
+layer{
+	name: "bn2_rb2_prepro"
+	type: "BatchNorm"
+	bottom: "conv1_rb2_prepro"
+	top: "bn2_rb2_prepro"
+	batch_norm_param{
+		use_global_stats: true
+		moving_averaging_fraction: 0.9
+		eps: 1e-5
+	}
+}
+layer{
+	name: "conv2_rb2_prepro"
+	type: "Convolution"
+	bottom: "bn2_rb2_prepro"
+	top: "conv2_rb2_prepro"
+	param{lr_mult: 1 decay_mult: 1}
+	param{lr_mult: 2 decay_mult: 0}
+	convolution_param{
+		num_output: 64
+		kernel_size: 3
+		stride: 1
+		pad: 1
+		weight_filler{
+			type: "gaussian"
+			std: 0.01
+		}
+		bias_filler{
+			type: "constant"
+			value: 0
+		}
+	}
+}
+layer{
+	name: "bn3_rb2_prepro"
+	type: "BatchNorm"
+	bottom: "conv2_rb2_prepro"
+	top: "bn3_rb2_prepro"
+	batch_norm_param{
+		use_global_stats: true
+		moving_averaging_fraction: 0.9
+		eps: 1e-5
+	}
+}
+layer{
+	name: "conv3_rb2_prepro"
+	type: "Convolution"
+	bottom: "bn3_rb2_prepro"
+	top: "conv3_rb2_prepro"
+	param{lr_mult: 1 decay_mult: 1}
+	param{lr_mult: 2 decay_mult: 0}
+	convolution_param{
+		num_output: 128
+		kernel_size: 1
+		stride: 1
+		weight_filler{
+			type: "gaussian"
+			std: 0.01
+		}
+		bias_filler{
+			type: "constant"
+			value: 0
+		}
+	}
+}
+layer{
+	name: "elt_rb2_prepro"
+	type: "Eltwise"
+	bottom: "conv3_rb2_prepro"
+	bottom: "skip_rb2_prepro"
+	top: "elt_rb2_prepro"
+	eltwise_param{
+		operation: SUM
+	}
+}
+
+## ==== residual block 3
+layer{
+	name: 'skip_rb3_prepro'
+	type: "Convolution"
+	bottom: "elt_rb2_prepro"
+	top: "skip_rb3_prepro"
+    param { lr_mult: 1 decay_mult: 1 }
+    param { lr_mult: 2 decay_mult: 0 }
+    convolution_param{
+    	num_output: 256 ## nFeat=256
+    	kernel_size: 1
+    	stride: 1
+    	weight_filler{
+    		type: "gaussian"
+    		std: 0.01
+    	}
+    	bias_filler{
+    		type: "constant"
+    		value: 0
+    	}
+    }
+}
+layer{
+	name: "bn1_rb3_prepro"
+	type: "BatchNorm"
+	bottom: "elt_rb2_prepro"
+	top: "bn1_rb3_prepro"
+	batch_norm_param{
+		use_global_stats: true
+		moving_averaging_fraction: 0.9
+		eps: 1e-5
+	}
+}
+layer{
+	name: "conv1_rb3_prepro"
+	type: "Convolution"
+	bottom: "bn1_rb3_prepro"
+	top: "conv1_rb3_prepro"
+	param{lr_mult: 1 decay_mult: 1}
+	param{lr_mult: 2 decay_mult: 0}
+	convolution_param{
+		num_output: 128 ## nFeat / 2
+		kernel_size: 1
+		stride: 1
+		weight_filler{
+			type: "gaussian"
+			std: 0.01
+		}
+		bias_filler{
+			type: "constant"
+			value: 0
+		}
+	}
+}
+layer{
+	name: "bn2_rb3_prepro"
+	type: "BatchNorm"
+	bottom: "conv1_rb3_prepro"
+	top: "bn2_rb3_prepro"
+	batch_norm_param{
+		use_global_stats: true
+		moving_averaging_fraction: 0.9
+		eps: 1e-5
+	}
+}
+layer{
+	name: "conv2_rb3_prepro"
+	type: "Convolution"
+	bottom: "bn2_rb3_prepro"
+	top: "conv2_rb3_prepro"
+	param{lr_mult: 1 decay_mult: 1}
+	param{lr_mult: 2 decay_mult: 0}
+	convolution_param{
+		num_output: 128 ## nFeat / 2
+		kernel_size: 3
+		stride: 1
+		pad: 1
+		weight_filler{
+			type: "gaussian"
+			std: 0.01
+		}
+		bias_filler{
+			type: "constant"
+			value: 0
+		}
+	}
+}
+layer{
+	name: "bn3_rb3_prepro"
+	type: "BatchNorm"
+	bottom: "conv2_rb3_prepro"
+	top: "bn3_rb3_prepro"
+	batch_norm_param{
+		use_global_stats: true
+		moving_averaging_fraction: 0.9
+		eps: 1e-5
+	}
+}
+layer{
+	name: "conv3_rb3_prepro"
+	type: "Convolution"
+	bottom: "bn3_rb3_prepro"
+	top: "conv3_rb3_prepro"
+	param{lr_mult: 1 decay_mult: 1}
+	param{lr_mult: 2 decay_mult: 0}
+	convolution_param{
+		num_output: 256 ## nFeat
+		kernel_size: 1
+		stride: 1
+		weight_filler{
+			type: "gaussian"
+			std: 0.01
+		}
+		bias_filler{
+			type: "constant"
+			value: 0
+		}
+	}
+}
+layer{
+	name: "elt_rb3_prepro"
+	type: "Eltwise"
+	bottom: "conv3_rb3_prepro"
+	bottom: "skip_rb3_prepro"
+	top: "elt_rb3_prepro"
+	eltwise_param{
+		operation: SUM
+	}
+}
+
+## ================================ Stage 0 =========================================
+
+# number of downsampling step: nLow = 4
+# number of output features: nFeat = 256
+
+## ==== hourglass_stage0 ====
+## up1_hourglass_stage0
+layer{
+	name: 'skip_up1_hourglass_stage0'
+	type: "Convolution"
+	bottom: "elt_rb3_prepro"
+	top: "skip_up1_hourglass_stage0"
+    param { lr_mult: 1 decay_mult: 1 }
+    param { lr_mult: 2 decay_mult: 0 }
+    convolution_param{
+    	num_output: 256 ## nFeat=256
+    	kernel_size: 1
+    	stride: 1
+    	weight_filler{
+    		type: "gaussian"
+    		std: 0.01
+    	}
+    	bias_filler{
+    		type: "constant"
+    		value: 0
+    	}
+    }
+}
+layer{
+	name: "bn1_up1_hourglass_stage0"
+	type: "BatchNorm"
+	bottom: "elt_rb3_prepro"
+	top: "bn1_up1_hourglass_stage0"
+	batch_norm_param{
+		use_global_stats: true
+		moving_averaging_fraction: 0.9
+		eps: 1e-5
+	}
+}
+layer{
+	name: "conv1_up1_hourglass_stage0"
+	type: "Convolution"
+	bottom: "bn1_up1_hourglass_stage0"
+	top: "conv1_up1_hourglass_stage0"
+	param{lr_mult: 1 decay_mult: 1}
+	param{lr_mult: 2 decay_mult: 0}
+	convolution_param{
+		num_output: 128 ## nFeat / 2
+		kernel_size: 1
+		stride: 1
+		weight_filler{
+			type: "gaussian"
+			std: 0.01
+		}
+		bias_filler{
+			type: "constant"
+			value: 0
+		}
+	}
+}
+layer{
+	name: "bn2_up1_hourglass_stage0"
+	type: "BatchNorm"
+	bottom: "conv1_up1_hourglass_stage0"
+	top: "bn2_up1_hourglass_stage0"
+	batch_norm_param{
+		use_global_stats: true
+		moving_averaging_fraction: 0.9
+		eps: 1e-5
+	}
+}
+layer{
+	name: "conv2_up1_hourglass_stage0"
+	type: "Convolution"
+	bottom: "bn2_up1_hourglass_stage0"
+	top: "conv2_up1_hourglass_stage0"
+	param{lr_mult: 1 decay_mult: 1}
+	param{lr_mult: 2 decay_mult: 0}
+	convolution_param{
+		num_output: 128 ## nFeat / 2
+		kernel_size: 3
+		stride: 1
+		pad: 1
+		weight_filler{
+			type: "gaussian"
+			std: 0.01
+		}
+		bias_filler{
+			type: "constant"
+			value: 0
+		}
+	}
+}
+layer{
+	name: "bn3_up1_hourglass_stage0"
+	type: "BatchNorm"
+	bottom: "conv2_up1_hourglass_stage0"
+	top: "bn3_up1_hourglass_stage0"
+	batch_norm_param{
+		use_global_stats: true
+		moving_averaging_fraction: 0.9
+		eps: 1e-5
+	}
+}
+layer{
+	name: "conv3_up1_hourglass_stage0"
+	type: "Convolution"
+	bottom: "bn3_up1_hourglass_stage0"
+	top: "conv3_up1_hourglass_stage0"
+	param{lr_mult: 1 decay_mult: 1}
+	param{lr_mult: 2 decay_mult: 0}
+	convolution_param{
+		num_output: 256 ## nFeat
+		kernel_size: 1
+		stride: 1
+		weight_filler{
+			type: "gaussian"
+			std: 0.01
+		}
+		bias_filler{
+			type: "constant"
+			value: 0
+		}
+	}
+}
+layer{
+	name: "elt_up1_hourglass_stage0"
+	type: "Eltwise"
+	bottom: "conv3_up1_hourglass_stage0"
+	bottom: "skip_up1_hourglass_stage0"
+	top: "elt_up1_hourglass_stage0"
+	eltwise_param{
+		operation: SUM
+	}
+}
+
+##=== low1_hourglass_stage0
+layer{
+	name: "pool_low1_hourglass_stage0"
+	type: "Pooling"
+	bottom: "elt_rb3_prepro"
+	top: "pool_low1_hourglass_stage0"
+	pooling_param{
+		pool: MAX
+		kernel_size: 2
+		stride: 2
+	}
+}
+layer{
+	name: 'skip_low1_hourglass_stage0'
+	type: "Convolution"
+	bottom: "pool_low1_hourglass_stage0"
+	top: "skip_low1_hourglass_stage0"
+    param { lr_mult: 1 decay_mult: 1 }
+    param { lr_mult: 2 decay_mult: 0 }
+    convolution_param{
+    	num_output: 256 ## nFeat=256
+    	kernel_size: 1
+    	stride: 1
+    	weight_filler{
+    		type: "gaussian"
+    		std: 0.01
+    	}
+    	bias_filler{
+    		type: "constant"
+    		value: 0
+    	}
+    }
+}
+layer{
+	name: "bn1_low1_hourglass_stage0"
+	type: "BatchNorm"
+	bottom: "pool_low1_hourglass_stage0"
+	top: "bn1_low1_hourglass_stage0"
+	batch_norm_param{
+		use_global_stats: true
+		moving_averaging_fraction: 0.9
+		eps: 1e-5
+	}
+}
+layer{
+	name: "conv1_low1_hourglass_stage0"
+	type: "Convolution"
+	bottom: "bn1_low1_hourglass_stage0"
+	top: "conv1_low1_hourglass_stage0"
+	param{lr_mult: 1 decay_mult: 1}
+	param{lr_mult: 2 decay_mult: 0}
+	convolution_param{
+		num_output: 128 ## nFeat / 2
+		kernel_size: 1
+		stride: 1
+		weight_filler{
+			type: "gaussian"
+			std: 0.01
+		}
+		bias_filler{
+			type: "constant"
+			value: 0
+		}
+	}
+}
+layer{
+	name: "bn2_low1_hourglass_stage0"
+	type: "BatchNorm"
+	bottom: "conv1_low1_hourglass_stage0"
+	top: "bn2_low1_hourglass_stage0"
+	batch_norm_param{
+		use_global_stats: true
+		moving_averaging_fraction: 0.9
+		eps: 1e-5
+	}
+}
+layer{
+	name: "conv2_low1_hourglass_stage0"
+	type: "Convolution"
+	bottom: "bn2_low1_hourglass_stage0"
+	top: "conv2_low1_hourglass_stage0"
+	param{lr_mult: 1 decay_mult: 1}
+	param{lr_mult: 2 decay_mult: 0}
+	convolution_param{
+		num_output: 128 ## nFeat / 2
+		kernel_size: 3
+		stride: 1
+		pad: 1
+		weight_filler{
+			type: "gaussian"
+			std: 0.01
+		}
+		bias_filler{
+			type: "constant"
+			value: 0
+		}
+	}
+}
+layer{
+	name: "bn3_low1_hourglass_stage0"
+	type: "BatchNorm"
+	bottom: "conv2_low1_hourglass_stage0"
+	top: "bn3_low1_hourglass_stage0"
+	batch_norm_param{
+		use_global_stats: true
+		moving_averaging_fraction: 0.9
+		eps: 1e-5
+	}
+}
+layer{
+	name: "conv3_low1_hourglass_stage0"
+	type: "Convolution"
+	bottom: "bn3_low1_hourglass_stage0"
+	top: "conv3_low1_hourglass_stage0"
+	param{lr_mult: 1 decay_mult: 1}
+	param{lr_mult: 2 decay_mult: 0}
+	convolution_param{
+		num_output: 256 ## nFeat
+		kernel_size: 1
+		stride: 1
+		weight_filler{
+			type: "gaussian"
+			std: 0.01
+		}
+		bias_filler{
+			type: "constant"
+			value: 0
+		}
+	}
+}
+layer{
+	name: "elt_low1_hourglass_stage0"
+	type: "Eltwise"
+	bottom: "conv3_low1_hourglass_stage0"
+	bottom: "skip_low1_hourglass_stage0"
+	top: "elt_low1_hourglass_stage0"
+	eltwise_param{
+		operation: SUM
+	}
+}
+
+##==== up2_hourglass_stage0
+layer{
+	name: 'skip_up2_hourglass_stage0'
+	type: "Convolution"
+	bottom: "elt_low1_hourglass_stage0"
+	top: "skip_up2_hourglass_stage0"
+    param { lr_mult: 1 decay_mult: 1 }
+    param { lr_mult: 2 decay_mult: 0 }
+    convolution_param{
+    	num_output: 256 ## nFeat=256
+    	kernel_size: 1
+    	stride: 1
+    	weight_filler{
+    		type: "gaussian"
+    		std: 0.01
+    	}
+    	bias_filler{
+    		type: "constant"
+    		value: 0
+    	}
+    }
+}
+layer{
+	name: "bn1_up2_hourglass_stage0"
+	type: "BatchNorm"
+	bottom: "elt_low1_hourglass_stage0"
+	top: "bn1_up2_hourglass_stage0"
+	batch_norm_param{
+		use_global_stats: true
+		moving_averaging_fraction: 0.9
+		eps: 1e-5
+	}
+}
+layer{
+	name: "conv1_up2_hourglass_stage0"
+	type: "Convolution"
+	bottom: "bn1_up2_hourglass_stage0"
+	top: "conv1_up2_hourglass_stage0"
+	param{lr_mult: 1 decay_mult: 1}
+	param{lr_mult: 2 decay_mult: 0}
+	convolution_param{
+		num_output: 128 ## nFeat / 2
+		kernel_size: 1
+		stride: 1
+		weight_filler{
+			type: "gaussian"
+			std: 0.01
+		}
+		bias_filler{
+			type: "constant"
+			value: 0
+		}
+	}
+}
+layer{
+	name: "bn2_up2_hourglass_stage0"
+	type: "BatchNorm"
+	bottom: "conv1_up2_hourglass_stage0"
+	top: "bn2_up2_hourglass_stage0"
+	batch_norm_param{
+		use_global_stats: true
+		moving_averaging_fraction: 0.9
+		eps: 1e-5
+	}
+}
+layer{
+	name: "conv2_up2_hourglass_stage0"
+	type: "Convolution"
+	bottom: "bn2_up2_hourglass_stage0"
+	top: "conv2_up2_hourglass_stage0"
+	param{lr_mult: 1 decay_mult: 1}
+	param{lr_mult: 2 decay_mult: 0}
+	convolution_param{
+		num_output: 128 ## nFeat / 2
+		kernel_size: 3
+		stride: 1
+		pad: 1
+		weight_filler{
+			type: "gaussian"
+			std: 0.01
+		}
+		bias_filler{
+			type: "constant"
+			value: 0
+		}
+	}
+}
+layer{
+	name: "bn3_up2_hourglass_stage0"
+	type: "BatchNorm"
+	bottom: "conv2_up2_hourglass_stage0"
+	top: "bn3_up2_hourglass_stage0"
+	batch_norm_param{
+		use_global_stats: true
+		moving_averaging_fraction: 0.9
+		eps: 1e-5
+	}
+}
+layer{
+	name: "conv3_up2_hourglass_stage0"
+	type: "Convolution"
+	bottom: "bn3_up2_hourglass_stage0"
+	top: "conv3_up2_hourglass_stage0"
+	param{lr_mult: 1 decay_mult: 1}
+	param{lr_mult: 2 decay_mult: 0}
+	convolution_param{
+		num_output: 256 ## nFeat
+		kernel_size: 1
+		stride: 1
+		weight_filler{
+			type: "gaussian"
+			std: 0.01
+		}
+		bias_filler{
+			type: "constant"
+			value: 0
+		}
+	}
+}
+layer{
+	name: "elt_up2_hourglass_stage0"
+	type: "Eltwise"
+	bottom: "conv3_up2_hourglass_stage0"
+	bottom: "skip_up2_hourglass_stage0"
+	top: "elt_up2_hourglass_stage0"
+	eltwise_param{
+		operation: SUM
+	}
+}
+##==== low2_hourglass_stage0
+layer{
+	name: "pool_low2_hourglass_stage0"
+	type: "Pooling"
+	bottom: "elt_low1_hourglass_stage0"
+	top: "pool_low2_hourglass_stage0"
+	pooling_param{
+		pool: MAX
+		kernel_size: 2
+		stride: 2
+	}
+}
+layer{
+	name: 'skip_low2_hourglass_stage0'
+	type: "Convolution"
+	bottom: "pool_low2_hourglass_stage0"
+	top: "skip_low2_hourglass_stage0"
+    param { lr_mult: 1 decay_mult: 1 }
+    param { lr_mult: 2 decay_mult: 0 }
+    convolution_param{
+    	num_output: 256 ## nFeat=256
+    	kernel_size: 1
+    	stride: 1
+    	weight_filler{
+    		type: "gaussian"
+    		std: 0.01
+    	}
+    	bias_filler{
+    		type: "constant"
+    		value: 0
+    	}
+    }
+}
+layer{
+	name: "bn1_low2_hourglass_stage0"
+	type: "BatchNorm"
+	bottom: "pool_low2_hourglass_stage0"
+	top: "bn1_low2_hourglass_stage0"
+	batch_norm_param{
+		use_global_stats: true
+		moving_averaging_fraction: 0.9
+		eps: 1e-5
+	}
+}
+layer{
+	name: "conv1_low2_hourglass_stage0"
+	type: "Convolution"
+	bottom: "bn1_low2_hourglass_stage0"
+	top: "conv1_low2_hourglass_stage0"
+	param{lr_mult: 1 decay_mult: 1}
+	param{lr_mult: 2 decay_mult: 0}
+	convolution_param{
+		num_output: 128 ## nFeat / 2
+		kernel_size: 1
+		stride: 1
+		weight_filler{
+			type: "gaussian"
+			std: 0.01
+		}
+		bias_filler{
+			type: "constant"
+			value: 0
+		}
+	}
+}
+layer{
+	name: "bn2_low2_hourglass_stage0"
+	type: "BatchNorm"
+	bottom: "conv1_low2_hourglass_stage0"
+	top: "bn2_low2_hourglass_stage0"
+	batch_norm_param{
+		use_global_stats: true
+		moving_averaging_fraction: 0.9
+		eps: 1e-5
+	}
+}
+layer{
+	name: "conv2_low2_hourglass_stage0"
+	type: "Convolution"
+	bottom: "bn2_low2_hourglass_stage0"
+	top: "conv2_low2_hourglass_stage0"
+	param{lr_mult: 1 decay_mult: 1}
+	param{lr_mult: 2 decay_mult: 0}
+	convolution_param{
+		num_output: 128 ## nFeat / 2
+		kernel_size: 3
+		stride: 1
+		pad: 1
+		weight_filler{
+			type: "gaussian"
+			std: 0.01
+		}
+		bias_filler{
+			type: "constant"
+			value: 0
+		}
+	}
+}
+layer{
+	name: "bn3_low2_hourglass_stage0"
+	type: "BatchNorm"
+	bottom: "conv2_low2_hourglass_stage0"
+	top: "bn3_low2_hourglass_stage0"
+	batch_norm_param{
+		use_global_stats: true
+		moving_averaging_fraction: 0.9
+		eps: 1e-5
+	}
+}
+layer{
+	name: "conv3_low2_hourglass_stage0"
+	type: "Convolution"
+	bottom: "bn3_low2_hourglass_stage0"
+	top: "conv3_low2_hourglass_stage0"
+	param{lr_mult: 1 decay_mult: 1}
+	param{lr_mult: 2 decay_mult: 0}
+	convolution_param{
+		num_output: 256 ## nFeat
+		kernel_size: 1
+		stride: 1
+		weight_filler{
+			type: "gaussian"
+			std: 0.01
+		}
+		bias_filler{
+			type: "constant"
+			value: 0
+		}
+	}
+}
+layer{
+	name: "elt_low2_hourglass_stage0"
+	type: "Eltwise"
+	bottom: "conv3_low2_hourglass_stage0"
+	bottom: "skip_low2_hourglass_stage0"
+	top: "elt_low2_hourglass_stage0"
+	eltwise_param{
+		operation: SUM
+	}
+}
+##==== up3_hourglass_stage0
+layer{
+	name: 'skip_up3_hourglass_stage0'
+	type: "Convolution"
+	bottom: "elt_low2_hourglass_stage0"
+	top: "skip_up3_hourglass_stage0"
+    param { lr_mult: 1 decay_mult: 1 }
+    param { lr_mult: 2 decay_mult: 0 }
+    convolution_param{
+    	num_output: 256 ## nFeat=256
+    	kernel_size: 1
+    	stride: 1
+    	weight_filler{
+    		type: "gaussian"
+    		std: 0.01
+    	}
+    	bias_filler{
+    		type: "constant"
+    		value: 0
+    	}
+    }
+}
+layer{
+	name: "bn1_up3_hourglass_stage0"
+	type: "BatchNorm"
+	bottom: "elt_low2_hourglass_stage0"
+	top: "bn1_up3_hourglass_stage0"
+	batch_norm_param{
+		use_global_stats: true
+		moving_averaging_fraction: 0.9
+		eps: 1e-5
+	}
+}
+layer{
+	name: "conv1_up3_hourglass_stage0"
+	type: "Convolution"
+	bottom: "bn1_up3_hourglass_stage0"
+	top: "conv1_up3_hourglass_stage0"
+	param{lr_mult: 1 decay_mult: 1}
+	param{lr_mult: 2 decay_mult: 0}
+	convolution_param{
+		num_output: 128 ## nFeat / 2
+		kernel_size: 1
+		stride: 1
+		weight_filler{
+			type: "gaussian"
+			std: 0.01
+		}
+		bias_filler{
+			type: "constant"
+			value: 0
+		}
+	}
+}
+layer{
+	name: "bn2_up3_hourglass_stage0"
+	type: "BatchNorm"
+	bottom: "conv1_up3_hourglass_stage0"
+	top: "bn2_up3_hourglass_stage0"
+	batch_norm_param{
+		use_global_stats: true
+		moving_averaging_fraction: 0.9
+		eps: 1e-5
+	}
+}
+layer{
+	name: "conv2_up3_hourglass_stage0"
+	type: "Convolution"
+	bottom: "bn2_up3_hourglass_stage0"
+	top: "conv2_up3_hourglass_stage0"
+	param{lr_mult: 1 decay_mult: 1}
+	param{lr_mult: 2 decay_mult: 0}
+	convolution_param{
+		num_output: 128 ## nFeat / 2
+		kernel_size: 3
+		stride: 1
+		pad: 1
+		weight_filler{
+			type: "gaussian"
+			std: 0.01
+		}
+		bias_filler{
+			type: "constant"
+			value: 0
+		}
+	}
+}
+layer{
+	name: "bn3_up3_hourglass_stage0"
+	type: "BatchNorm"
+	bottom: "conv2_up3_hourglass_stage0"
+	top: "bn3_up3_hourglass_stage0"
+	batch_norm_param{
+		use_global_stats: true
+		moving_averaging_fraction: 0.9
+		eps: 1e-5
+	}
+}
+layer{
+	name: "conv3_up3_hourglass_stage0"
+	type: "Convolution"
+	bottom: "bn3_up3_hourglass_stage0"
+	top: "conv3_up3_hourglass_stage0"
+	param{lr_mult: 1 decay_mult: 1}
+	param{lr_mult: 2 decay_mult: 0}
+	convolution_param{
+		num_output: 256 ## nFeat
+		kernel_size: 1
+		stride: 1
+		weight_filler{
+			type: "gaussian"
+			std: 0.01
+		}
+		bias_filler{
+			type: "constant"
+			value: 0
+		}
+	}
+}
+layer{
+	name: "elt_up3_hourglass_stage0"
+	type: "Eltwise"
+	bottom: "conv3_up3_hourglass_stage0"
+	bottom: "skip_up3_hourglass_stage0"
+	top: "elt_up3_hourglass_stage0"
+	eltwise_param{
+		operation: SUM
+	}
+}
+##==== low3_hourglass_stage0
+layer{
+	name: "pool_low3_hourglass_stage0"
+	type: "Pooling"
+	bottom: "elt_low2_hourglass_stage0"
+	top: "pool_low3_hourglass_stage0"
+	pooling_param{
+		pool: MAX
+		kernel_size: 2
+		stride: 2
+	}
+}
+layer{
+	name: 'skip_low3_hourglass_stage0'
+	type: "Convolution"
+	bottom: "pool_low3_hourglass_stage0"
+	top: "skip_low3_hourglass_stage0"
+    param { lr_mult: 1 decay_mult: 1 }
+    param { lr_mult: 2 decay_mult: 0 }
+    convolution_param{
+    	num_output: 256 ## nFeat=256
+    	kernel_size: 1
+    	stride: 1
+    	weight_filler{
+    		type: "gaussian"
+    		std: 0.01
+    	}
+    	bias_filler{
+    		type: "constant"
+    		value: 0
+    	}
+    }
+}
+layer{
+	name: "bn1_low3_hourglass_stage0"
+	type: "BatchNorm"
+	bottom: "pool_low3_hourglass_stage0"
+	top: "bn1_low3_hourglass_stage0"
+	batch_norm_param{
+		use_global_stats: true
+		moving_averaging_fraction: 0.9
+		eps: 1e-5
+	}
+}
+layer{
+	name: "conv1_low3_hourglass_stage0"
+	type: "Convolution"
+	bottom: "bn1_low3_hourglass_stage0"
+	top: "conv1_low3_hourglass_stage0"
+	param{lr_mult: 1 decay_mult: 1}
+	param{lr_mult: 2 decay_mult: 0}
+	convolution_param{
+		num_output: 128 ## nFeat / 2
+		kernel_size: 1
+		stride: 1
+		weight_filler{
+			type: "gaussian"
+			std: 0.01
+		}
+		bias_filler{
+			type: "constant"
+			value: 0
+		}
+	}
+}
+layer{
+	name: "bn2_low3_hourglass_stage0"
+	type: "BatchNorm"
+	bottom: "conv1_low3_hourglass_stage0"
+	top: "bn2_low3_hourglass_stage0"
+	batch_norm_param{
+		use_global_stats: true
+		moving_averaging_fraction: 0.9
+		eps: 1e-5
+	}
+}
+layer{
+	name: "conv2_low3_hourglass_stage0"
+	type: "Convolution"
+	bottom: "bn2_low3_hourglass_stage0"
+	top: "conv2_low3_hourglass_stage0"
+	param{lr_mult: 1 decay_mult: 1}
+	param{lr_mult: 2 decay_mult: 0}
+	convolution_param{
+		num_output: 128 ## nFeat / 2
+		kernel_size: 3
+		stride: 1
+		pad: 1
+		weight_filler{
+			type: "gaussian"
+			std: 0.01
+		}
+		bias_filler{
+			type: "constant"
+			value: 0
+		}
+	}
+}
+layer{
+	name: "bn3_low3_hourglass_stage0"
+	type: "BatchNorm"
+	bottom: "conv2_low3_hourglass_stage0"
+	top: "bn3_low3_hourglass_stage0"
+	batch_norm_param{
+		use_global_stats: true
+		moving_averaging_fraction: 0.9
+		eps: 1e-5
+	}
+}
+layer{
+	name: "conv3_low3_hourglass_stage0"
+	type: "Convolution"
+	bottom: "bn3_low3_hourglass_stage0"
+	top: "conv3_low3_hourglass_stage0"
+	param{lr_mult: 1 decay_mult: 1}
+	param{lr_mult: 2 decay_mult: 0}
+	convolution_param{
+		num_output: 256 ## nFeat
+		kernel_size: 1
+		stride: 1
+		weight_filler{
+			type: "gaussian"
+			std: 0.01
+		}
+		bias_filler{
+			type: "constant"
+			value: 0
+		}
+	}
+}
+layer{
+	name: "elt_low3_hourglass_stage0"
+	type: "Eltwise"
+	bottom: "conv3_low3_hourglass_stage0"
+	bottom: "skip_low3_hourglass_stage0"
+	top: "elt_low3_hourglass_stage0"
+	eltwise_param{
+		operation: SUM
+	}
+}
+##==== up4_hourglass_stage0
+layer{
+	name: 'skip_up4_hourglass_stage0'
+	type: "Convolution"
+	bottom: "elt_low3_hourglass_stage0"
+	top: "skip_up4_hourglass_stage0"
+    param { lr_mult: 1 decay_mult: 1 }
+    param { lr_mult: 2 decay_mult: 0 }
+    convolution_param{
+    	num_output: 256 ## nFeat=256
+    	kernel_size: 1
+    	stride: 1
+    	weight_filler{
+    		type: "gaussian"
+    		std: 0.01
+    	}
+    	bias_filler{
+    		type: "constant"
+    		value: 0
+    	}
+    }
+}
+layer{
+	name: "bn1_up4_hourglass_stage0"
+	type: "BatchNorm"
+	bottom: "elt_low3_hourglass_stage0"
+	top: "bn1_up4_hourglass_stage0"
+	batch_norm_param{
+		use_global_stats: true
+		moving_averaging_fraction: 0.9
+		eps: 1e-5
+	}
+}
+layer{
+	name: "conv1_up4_hourglass_stage0"
+	type: "Convolution"
+	bottom: "bn1_up4_hourglass_stage0"
+	top: "conv1_up4_hourglass_stage0"
+	param{lr_mult: 1 decay_mult: 1}
+	param{lr_mult: 2 decay_mult: 0}
+	convolution_param{
+		num_output: 128 ## nFeat / 2
+		kernel_size: 1
+		stride: 1
+		weight_filler{
+			type: "gaussian"
+			std: 0.01
+		}
+		bias_filler{
+			type: "constant"
+			value: 0
+		}
+	}
+}
+layer{
+	name: "bn2_up4_hourglass_stage0"
+	type: "BatchNorm"
+	bottom: "conv1_up4_hourglass_stage0"
+	top: "bn2_up4_hourglass_stage0"
+	batch_norm_param{
+		use_global_stats: true
+		moving_averaging_fraction: 0.9
+		eps: 1e-5
+	}
+}
+layer{
+	name: "conv2_up4_hourglass_stage0"
+	type: "Convolution"
+	bottom: "bn2_up4_hourglass_stage0"
+	top: "conv2_up4_hourglass_stage0"
+	param{lr_mult: 1 decay_mult: 1}
+	param{lr_mult: 2 decay_mult: 0}
+	convolution_param{
+		num_output: 128 ## nFeat / 2
+		kernel_size: 3
+		stride: 1
+		pad: 1
+		weight_filler{
+			type: "gaussian"
+			std: 0.01
+		}
+		bias_filler{
+			type: "constant"
+			value: 0
+		}
+	}
+}
+layer{
+	name: "bn3_up4_hourglass_stage0"
+	type: "BatchNorm"
+	bottom: "conv2_up4_hourglass_stage0"
+	top: "bn3_up4_hourglass_stage0"
+	batch_norm_param{
+		use_global_stats: true
+		moving_averaging_fraction: 0.9
+		eps: 1e-5
+	}
+}
+layer{
+	name: "conv3_up4_hourglass_stage0"
+	type: "Convolution"
+	bottom: "bn3_up4_hourglass_stage0"
+	top: "conv3_up4_hourglass_stage0"
+	param{lr_mult: 1 decay_mult: 1}
+	param{lr_mult: 2 decay_mult: 0}
+	convolution_param{
+		num_output: 256 ## nFeat
+		kernel_size: 1
+		stride: 1
+		weight_filler{
+			type: "gaussian"
+			std: 0.01
+		}
+		bias_filler{
+			type: "constant"
+			value: 0
+		}
+	}
+}
+layer{
+	name: "elt_up4_hourglass_stage0"
+	type: "Eltwise"
+	bottom: "conv3_up4_hourglass_stage0"
+	bottom: "skip_up4_hourglass_stage0"
+	top: "elt_up4_hourglass_stage0"
+	eltwise_param{
+		operation: SUM
+	}
+}
+##==== low4_hourglass_stage0
+layer{
+	name: "pool_low4_hourglass_stage0"
+	type: "Pooling"
+	bottom: "elt_low3_hourglass_stage0"
+	top: "pool_low4_hourglass_stage0"
+	pooling_param{
+		pool: MAX
+		kernel_size: 2
+		stride: 2
+	}
+}
+layer{
+	name: 'skip_low4_hourglass_stage0'
+	type: "Convolution"
+	bottom: "pool_low4_hourglass_stage0"
+	top: "skip_low4_hourglass_stage0"
+    param { lr_mult: 1 decay_mult: 1 }
+    param { lr_mult: 2 decay_mult: 0 }
+    convolution_param{
+    	num_output: 256 ## nFeat=256
+    	kernel_size: 1
+    	stride: 1
+    	weight_filler{
+    		type: "gaussian"
+    		std: 0.01
+    	}
+    	bias_filler{
+    		type: "constant"
+    		value: 0
+    	}
+    }
+}
+layer{
+	name: "bn1_low4_hourglass_stage0"
+	type: "BatchNorm"
+	bottom: "pool_low4_hourglass_stage0"
+	top: "bn1_low4_hourglass_stage0"
+	batch_norm_param{
+		use_global_stats: true
+		moving_averaging_fraction: 0.9
+		eps: 1e-5
+	}
+}
+layer{
+	name: "conv1_low4_hourglass_stage0"
+	type: "Convolution"
+	bottom: "bn1_low4_hourglass_stage0"
+	top: "conv1_low4_hourglass_stage0"
+	param{lr_mult: 1 decay_mult: 1}
+	param{lr_mult: 2 decay_mult: 0}
+	convolution_param{
+		num_output: 128 ## nFeat / 2
+		kernel_size: 1
+		stride: 1
+		weight_filler{
+			type: "gaussian"
+			std: 0.01
+		}
+		bias_filler{
+			type: "constant"
+			value: 0
+		}
+	}
+}
+layer{
+	name: "bn2_low4_hourglass_stage0"
+	type: "BatchNorm"
+	bottom: "conv1_low4_hourglass_stage0"
+	top: "bn2_low4_hourglass_stage0"
+	batch_norm_param{
+		use_global_stats: true
+		moving_averaging_fraction: 0.9
+		eps: 1e-5
+	}
+}
+layer{
+	name: "conv2_low4_hourglass_stage0"
+	type: "Convolution"
+	bottom: "bn2_low4_hourglass_stage0"
+	top: "conv2_low4_hourglass_stage0"
+	param{lr_mult: 1 decay_mult: 1}
+	param{lr_mult: 2 decay_mult: 0}
+	convolution_param{
+		num_output: 128 ## nFeat / 2
+		kernel_size: 3
+		stride: 1
+		pad: 1
+		weight_filler{
+			type: "gaussian"
+			std: 0.01
+		}
+		bias_filler{
+			type: "constant"
+			value: 0
+		}
+	}
+}
+layer{
+	name: "bn3_low4_hourglass_stage0"
+	type: "BatchNorm"
+	bottom: "conv2_low4_hourglass_stage0"
+	top: "bn3_low4_hourglass_stage0"
+	batch_norm_param{
+		use_global_stats: true
+		moving_averaging_fraction: 0.9
+		eps: 1e-5
+	}
+}
+layer{
+	name: "conv3_low4_hourglass_stage0"
+	type: "Convolution"
+	bottom: "bn3_low4_hourglass_stage0"
+	top: "conv3_low4_hourglass_stage0"
+	param{lr_mult: 1 decay_mult: 1}
+	param{lr_mult: 2 decay_mult: 0}
+	convolution_param{
+		num_output: 256 ## nFeat
+		kernel_size: 1
+		stride: 1
+		weight_filler{
+			type: "gaussian"
+			std: 0.01
+		}
+		bias_filler{
+			type: "constant"
+			value: 0
+		}
+	}
+}
+layer{
+	name: "elt_low4_hourglass_stage0"
+	type: "Eltwise"
+	bottom: "conv3_low4_hourglass_stage0"
+	bottom: "skip_low4_hourglass_stage0"
+	top: "elt_low4_hourglass_stage0"
+	eltwise_param{
+		operation: SUM
+	}
+}
+##==== low4_2_hourglass_stage0
+layer{
+	name: 'skip_low4_2_hourglass_stage0'
+	type: "Convolution"
+	bottom: "elt_low4_hourglass_stage0"
+	top: "skip_low4_2_hourglass_stage0"
+    param { lr_mult: 1 decay_mult: 1 }
+    param { lr_mult: 2 decay_mult: 0 }
+    convolution_param{
+    	num_output: 256 ## nFeat=256
+    	kernel_size: 1
+    	stride: 1
+    	weight_filler{
+    		type: "gaussian"
+    		std: 0.01
+    	}
+    	bias_filler{
+    		type: "constant"
+    		value: 0
+    	}
+    }
+}
+layer{
+	name: "bn1_low4_2_hourglass_stage0"
+	type: "BatchNorm"
+	bottom: "elt_low4_hourglass_stage0"
+	top: "bn1_low4_2_hourglass_stage0"
+	batch_norm_param{
+		use_global_stats: true
+		moving_averaging_fraction: 0.9
+		eps: 1e-5
+	}
+}
+layer{
+	name: "conv1_low4_2_hourglass_stage0"
+	type: "Convolution"
+	bottom: "bn1_low4_2_hourglass_stage0"
+	top: "conv1_low4_2_hourglass_stage0"
+	param{lr_mult: 1 decay_mult: 1}
+	param{lr_mult: 2 decay_mult: 0}
+	convolution_param{
+		num_output: 128 ## nFeat / 2
+		kernel_size: 1
+		stride: 1
+		weight_filler{
+			type: "gaussian"
+			std: 0.01
+		}
+		bias_filler{
+			type: "constant"
+			value: 0
+		}
+	}
+}
+layer{
+	name: "bn2_low4_2_hourglass_stage0"
+	type: "BatchNorm"
+	bottom: "conv1_low4_2_hourglass_stage0"
+	top: "bn2_low4_2_hourglass_stage0"
+	batch_norm_param{
+		use_global_stats: true
+		moving_averaging_fraction: 0.9
+		eps: 1e-5
+	}
+}
+layer{
+	name: "conv2_low4_2_hourglass_stage0"
+	type: "Convolution"
+	bottom: "bn2_low4_2_hourglass_stage0"
+	top: "conv2_low4_2_hourglass_stage0"
+	param{lr_mult: 1 decay_mult: 1}
+	param{lr_mult: 2 decay_mult: 0}
+	convolution_param{
+		num_output: 128 ## nFeat / 2
+		kernel_size: 3
+		stride: 1
+		pad: 1
+		weight_filler{
+			type: "gaussian"
+			std: 0.01
+		}
+		bias_filler{
+			type: "constant"
+			value: 0
+		}
+	}
+}
+layer{
+	name: "bn3_low4_2_hourglass_stage0"
+	type: "BatchNorm"
+	bottom: "conv2_low4_2_hourglass_stage0"
+	top: "bn3_low4_2_hourglass_stage0"
+	batch_norm_param{
+		use_global_stats: true
+		moving_averaging_fraction: 0.9
+		eps: 1e-5
+	}
+}
+layer{
+	name: "conv3_low4_2_hourglass_stage0"
+	type: "Convolution"
+	bottom: "bn3_low4_2_hourglass_stage0"
+	top: "conv3_low4_2_hourglass_stage0"
+	param{lr_mult: 1 decay_mult: 1}
+	param{lr_mult: 2 decay_mult: 0}
+	convolution_param{
+		num_output: 256 ## nFeat
+		kernel_size: 1
+		stride: 1
+		weight_filler{
+			type: "gaussian"
+			std: 0.01
+		}
+		bias_filler{
+			type: "constant"
+			value: 0
+		}
+	}
+}
+layer{
+	name: "elt_low4_2_hourglass_stage0"
+	type: "Eltwise"
+	bottom: "conv3_low4_2_hourglass_stage0"
+	bottom: "skip_low4_2_hourglass_stage0"
+	top: "elt_low4_2_hourglass_stage0"
+	eltwise_param{
+		operation: SUM
+	}
+}
+##==== uplow4_hourglass_stage0
+layer{
+	name: "upSample_uplow4_hourglass_stage0"
+	type: "Deconvolution"
+	bottom: "elt_low4_2_hourglass_stage0"
+	top: "upSample_uplow4_hourglass_stage0"
+	convolution_param{
+		kernel_h: 2
+		kernel_w: 2
+		stride_h: 2
+		stride_w: 2
+		pad_h: 0
+		pad_w: 0
+		num_output: 256
+		group: 256
+		bias_term: false
+		weight_filler{
+			type: "bilinear"
+		}
+	}
+	param{lr_mult: 0 decay_mult: 0}
+}
+layer{
+	name: 'skip_uplow4_hourglass_stage0'
+	type: "Convolution"
+	bottom: "upSample_uplow4_hourglass_stage0"
+	top: "skip_uplow4_hourglass_stage0"
+    param { lr_mult: 1 decay_mult: 1 }
+    param { lr_mult: 2 decay_mult: 0 }
+    convolution_param{
+    	num_output: 256 ## nFeat=256
+    	kernel_size: 1
+    	stride: 1
+    	weight_filler{
+    		type: "gaussian"
+    		std: 0.01
+    	}
+    	bias_filler{
+    		type: "constant"
+    		value: 0
+    	}
+    }
+}
+layer{
+	name: "bn1_uplow4_hourglass_stage0"
+	type: "BatchNorm"
+	bottom: "upSample_uplow4_hourglass_stage0"
+	top: "bn1_uplow4_hourglass_stage0"
+	batch_norm_param{
+		use_global_stats: true
+		moving_averaging_fraction: 0.9
+		eps: 1e-5
+	}
+}
+layer{
+	name: "conv1_uplow4_hourglass_stage0"
+	type: "Convolution"
+	bottom: "bn1_uplow4_hourglass_stage0"
+	top: "conv1_uplow4_hourglass_stage0"
+	param{lr_mult: 1 decay_mult: 1}
+	param{lr_mult: 2 decay_mult: 0}
+	convolution_param{
+		num_output: 128 ## nFeat / 2
+		kernel_size: 1
+		stride: 1
+		weight_filler{
+			type: "gaussian"
+			std: 0.01
+		}
+		bias_filler{
+			type: "constant"
+			value: 0
+		}
+	}
+}
+layer{
+	name: "bn2_uplow4_hourglass_stage0"
+	type: "BatchNorm"
+	bottom: "conv1_uplow4_hourglass_stage0"
+	top: "bn2_uplow4_hourglass_stage0"
+	batch_norm_param{
+		use_global_stats: true
+		moving_averaging_fraction: 0.9
+		eps: 1e-5
+	}
+}
+layer{
+	name: "conv2_uplow4_hourglass_stage0"
+	type: "Convolution"
+	bottom: "bn2_uplow4_hourglass_stage0"
+	top: "conv2_uplow4_hourglass_stage0"
+	param{lr_mult: 1 decay_mult: 1}
+	param{lr_mult: 2 decay_mult: 0}
+	convolution_param{
+		num_output: 128 ## nFeat / 2
+		kernel_size: 3
+		stride: 1
+		pad: 1
+		weight_filler{
+			type: "gaussian"
+			std: 0.01
+		}
+		bias_filler{
+			type: "constant"
+			value: 0
+		}
+	}
+}
+layer{
+	name: "bn3_uplow4_hourglass_stage0"
+	type: "BatchNorm"
+	bottom: "conv2_uplow4_hourglass_stage0"
+	top: "bn3_uplow4_hourglass_stage0"
+	batch_norm_param{
+		use_global_stats: true
+		moving_averaging_fraction: 0.9
+		eps: 1e-5
+	}
+}
+layer{
+	name: "conv3_uplow4_hourglass_stage0"
+	type: "Convolution"
+	bottom: "bn3_uplow4_hourglass_stage0"
+	top: "conv3_uplow4_hourglass_stage0"
+	param{lr_mult: 1 decay_mult: 1}
+	param{lr_mult: 2 decay_mult: 0}
+	convolution_param{
+		num_output: 256 ## nFeat
+		kernel_size: 1
+		stride: 1
+		weight_filler{
+			type: "gaussian"
+			std: 0.01
+		}
+		bias_filler{
+			type: "constant"
+			value: 0
+		}
+	}
+}
+layer{
+	name: "elt_uplow4_hourglass_stage0"
+	type: "Eltwise"
+	bottom: "conv3_uplow4_hourglass_stage0"
+	bottom: "skip_uplow4_hourglass_stage0"
+	top: "elt_uplow4_hourglass_stage0"
+	eltwise_param{
+		operation: SUM
+	}
+}
+
+layer{
+	name: "Elt4_hourglass_stage0"
+	type: "Eltwise"
+	bottom: "elt_uplow4_hourglass_stage0"
+	bottom: "elt_up4_hourglass_stage0"
+	top: "Elt4_hourglass_stage0"
+	eltwise_param{
+		operation: SUM
+	}
+}
+##==== uplow3_hourglass_stage0
+layer{
+	name: "upSample_uplow3_hourglass_stage0"
+	type: "Deconvolution"
+	bottom: "Elt4_hourglass_stage0"
+	top: "upSample_uplow3_hourglass_stage0"
+	convolution_param{
+		kernel_h: 2
+		kernel_w: 2
+		stride_h: 2
+		stride_w: 2
+		pad_h: 0
+		pad_w: 0
+		num_output: 256
+		group: 256
+		bias_term: false
+		weight_filler{
+			type: "bilinear"
+		}
+	}
+	param{lr_mult: 0 decay_mult: 0}
+}
+layer{
+	name: 'skip_uplow3_hourglass_stage0'
+	type: "Convolution"
+	bottom: "upSample_uplow3_hourglass_stage0"
+	top: "skip_uplow3_hourglass_stage0"
+    param { lr_mult: 1 decay_mult: 1 }
+    param { lr_mult: 2 decay_mult: 0 }
+    convolution_param{
+    	num_output: 256 ## nFeat=256
+    	kernel_size: 1
+    	stride: 1
+    	weight_filler{
+    		type: "gaussian"
+    		std: 0.01
+    	}
+    	bias_filler{
+    		type: "constant"
+    		value: 0
+    	}
+    }
+}
+layer{
+	name: "bn1_uplow3_hourglass_stage0"
+	type: "BatchNorm"
+	bottom: "upSample_uplow3_hourglass_stage0"
+	top: "bn1_uplow3_hourglass_stage0"
+	batch_norm_param{
+		use_global_stats: true
+		moving_averaging_fraction: 0.9
+		eps: 1e-5
+	}
+}
+layer{
+	name: "conv1_uplow3_hourglass_stage0"
+	type: "Convolution"
+	bottom: "bn1_uplow3_hourglass_stage0"
+	top: "conv1_uplow3_hourglass_stage0"
+	param{lr_mult: 1 decay_mult: 1}
+	param{lr_mult: 2 decay_mult: 0}
+	convolution_param{
+		num_output: 128 ## nFeat / 2
+		kernel_size: 1
+		stride: 1
+		weight_filler{
+			type: "gaussian"
+			std: 0.01
+		}
+		bias_filler{
+			type: "constant"
+			value: 0
+		}
+	}
+}
+layer{
+	name: "bn2_uplow3_hourglass_stage0"
+	type: "BatchNorm"
+	bottom: "conv1_uplow3_hourglass_stage0"
+	top: "bn2_uplow3_hourglass_stage0"
+	batch_norm_param{
+		use_global_stats: true
+		moving_averaging_fraction: 0.9
+		eps: 1e-5
+	}
+}
+layer{
+	name: "conv2_uplow3_hourglass_stage0"
+	type: "Convolution"
+	bottom: "bn2_uplow3_hourglass_stage0"
+	top: "conv2_uplow3_hourglass_stage0"
+	param{lr_mult: 1 decay_mult: 1}
+	param{lr_mult: 2 decay_mult: 0}
+	convolution_param{
+		num_output: 128 ## nFeat / 2
+		kernel_size: 3
+		stride: 1
+		pad: 1
+		weight_filler{
+			type: "gaussian"
+			std: 0.01
+		}
+		bias_filler{
+			type: "constant"
+			value: 0
+		}
+	}
+}
+layer{
+	name: "bn3_uplow3_hourglass_stage0"
+	type: "BatchNorm"
+	bottom: "conv2_uplow3_hourglass_stage0"
+	top: "bn3_uplow3_hourglass_stage0"
+	batch_norm_param{
+		use_global_stats: true
+		moving_averaging_fraction: 0.9
+		eps: 1e-5
+	}
+}
+layer{
+	name: "conv3_uplow3_hourglass_stage0"
+	type: "Convolution"
+	bottom: "bn3_uplow3_hourglass_stage0"
+	top: "conv3_uplow3_hourglass_stage0"
+	param{lr_mult: 1 decay_mult: 1}
+	param{lr_mult: 2 decay_mult: 0}
+	convolution_param{
+		num_output: 256 ## nFeat
+		kernel_size: 1
+		stride: 1
+		weight_filler{
+			type: "gaussian"
+			std: 0.01
+		}
+		bias_filler{
+			type: "constant"
+			value: 0
+		}
+	}
+}
+layer{
+	name: "elt_uplow3_hourglass_stage0"
+	type: "Eltwise"
+	bottom: "conv3_uplow3_hourglass_stage0"
+	bottom: "skip_uplow3_hourglass_stage0"
+	top: "elt_uplow3_hourglass_stage0"
+	eltwise_param{
+		operation: SUM
+	}
+}
+
+layer{
+	name: "Elt3_hourglass_stage0"
+	type: "Eltwise"
+	bottom: "elt_uplow3_hourglass_stage0"
+	bottom: "elt_up3_hourglass_stage0"
+	top: "Elt3_hourglass_stage0"
+	eltwise_param{
+		operation: SUM
+	}
+}
+
+##==== uplow2_hourglass_stage0
+layer{
+	name: "upSample_uplow2_hourglass_stage0"
+	type: "Deconvolution"
+	bottom: "Elt3_hourglass_stage0"
+	top: "upSample_uplow2_hourglass_stage0"
+	convolution_param {
+		kernel_h: 2
+		kernel_w: 2
+		stride_h: 2
+		stride_w: 2
+		pad_h: 0
+		pad_w: 0
+		num_output: 256
+		group: 256
+		bias_term: false
+		weight_filler {
+		  type: "bilinear"
+		}
+	}
+	param {
+		lr_mult: 0
+		decay_mult: 0
+	}
+}
+layer{
+	name: 'skip_uplow2_hourglass_stage0'
+	type: "Convolution"
+	bottom: "upSample_uplow2_hourglass_stage0"
+	top: "skip_uplow2_hourglass_stage0"
+    param { lr_mult: 1 decay_mult: 1 }
+    param { lr_mult: 2 decay_mult: 0 }
+    convolution_param{
+    	num_output: 256 ## nFeat=256
+    	kernel_size: 1
+    	stride: 1
+    	weight_filler{
+    		type: "gaussian"
+    		std: 0.01
+    	}
+    	bias_filler{
+    		type: "constant"
+    		value: 0
+    	}
+    }
+}
+layer{
+	name: "bn1_uplow2_hourglass_stage0"
+	type: "BatchNorm"
+	bottom: "upSample_uplow2_hourglass_stage0"
+	top: "bn1_uplow2_hourglass_stage0"
+	batch_norm_param{
+		use_global_stats: true
+		moving_averaging_fraction: 0.9
+		eps: 1e-5
+	}
+}
+layer{
+	name: "conv1_uplow2_hourglass_stage0"
+	type: "Convolution"
+	bottom: "bn1_uplow2_hourglass_stage0"
+	top: "conv1_uplow2_hourglass_stage0"
+	param{lr_mult: 1 decay_mult: 1}
+	param{lr_mult: 2 decay_mult: 0}
+	convolution_param{
+		num_output: 128 ## nFeat / 2
+		kernel_size: 1
+		stride: 1
+		weight_filler{
+			type: "gaussian"
+			std: 0.01
+		}
+		bias_filler{
+			type: "constant"
+			value: 0
+		}
+	}
+}
+layer{
+	name: "bn2_uplow2_hourglass_stage0"
+	type: "BatchNorm"
+	bottom: "conv1_uplow2_hourglass_stage0"
+	top: "bn2_uplow2_hourglass_stage0"
+	batch_norm_param{
+		use_global_stats: true
+		moving_averaging_fraction: 0.9
+		eps: 1e-5
+	}
+}
+layer{
+	name: "conv2_uplow2_hourglass_stage0"
+	type: "Convolution"
+	bottom: "bn2_uplow2_hourglass_stage0"
+	top: "conv2_uplow2_hourglass_stage0"
+	param{lr_mult: 1 decay_mult: 1}
+	param{lr_mult: 2 decay_mult: 0}
+	convolution_param{
+		num_output: 128 ## nFeat / 2
+		kernel_size: 3
+		stride: 1
+		pad: 1
+		weight_filler{
+			type: "gaussian"
+			std: 0.01
+		}
+		bias_filler{
+			type: "constant"
+			value: 0
+		}
+	}
+}
+layer{
+	name: "bn3_uplow2_hourglass_stage0"
+	type: "BatchNorm"
+	bottom: "conv2_uplow2_hourglass_stage0"
+	top: "bn3_uplow2_hourglass_stage0"
+	batch_norm_param{
+		use_global_stats: true
+		moving_averaging_fraction: 0.9
+		eps: 1e-5
+	}
+}
+layer{
+	name: "conv3_uplow2_hourglass_stage0"
+	type: "Convolution"
+	bottom: "bn3_uplow2_hourglass_stage0"
+	top: "conv3_uplow2_hourglass_stage0"
+	param{lr_mult: 1 decay_mult: 1}
+	param{lr_mult: 2 decay_mult: 0}
+	convolution_param{
+		num_output: 256 ## nFeat
+		kernel_size: 1
+		stride: 1
+		weight_filler{
+			type: "gaussian"
+			std: 0.01
+		}
+		bias_filler{
+			type: "constant"
+			value: 0
+		}
+	}
+}
+layer{
+	name: "elt_uplow2_hourglass_stage0"
+	type: "Eltwise"
+	bottom: "conv3_uplow2_hourglass_stage0"
+	bottom: "skip_uplow2_hourglass_stage0"
+	top: "elt_uplow2_hourglass_stage0"
+	eltwise_param{
+		operation: SUM
+	}
+}
+
+layer{
+	name: "Elt2_hourglass_stage0"
+	type: "Eltwise"
+	bottom: "elt_uplow2_hourglass_stage0"
+	bottom: "elt_up2_hourglass_stage0"
+	top: "Elt2_hourglass_stage0"
+	eltwise_param{
+		operation: SUM
+	}
+}
+
+##==== uplow1_hourglass_stage0
+layer{
+	name: "upSample_uplow1_hourglass_stage0"
+	type: "Deconvolution"
+	bottom: "Elt2_hourglass_stage0"
+	top: "upSample_uplow1_hourglass_stage0"
+	convolution_param {
+		kernel_h: 2
+		kernel_w: 2
+		stride_h: 2
+		stride_w: 2
+		pad_h: 0
+		pad_w: 0
+		num_output: 256
+		group: 256
+		bias_term: false
+		weight_filler {
+		  type: "bilinear"
+		}
+	}
+	param {
+		lr_mult: 0
+		decay_mult: 0
+	}
+}
+layer{
+	name: 'skip_uplow1_hourglass_stage0'
+	type: "Convolution"
+	bottom: "upSample_uplow1_hourglass_stage0"
+	top: "skip_uplow1_hourglass_stage0"
+    param { lr_mult: 1 decay_mult: 1 }
+    param { lr_mult: 2 decay_mult: 0 }
+    convolution_param{
+    	num_output: 256 ## nFeat=256
+    	kernel_size: 1
+    	stride: 1
+    	weight_filler{
+    		type: "gaussian"
+    		std: 0.01
+    	}
+    	bias_filler{
+    		type: "constant"
+    		value: 0
+    	}
+    }
+}
+layer{
+	name: "bn1_uplow1_hourglass_stage0"
+	type: "BatchNorm"
+	bottom: "upSample_uplow1_hourglass_stage0"
+	top: "bn1_uplow1_hourglass_stage0"
+	batch_norm_param{
+		use_global_stats: true
+		moving_averaging_fraction: 0.9
+		eps: 1e-5
+	}
+}
+layer{
+	name: "conv1_uplow1_hourglass_stage0"
+	type: "Convolution"
+	bottom: "bn1_uplow1_hourglass_stage0"
+	top: "conv1_uplow1_hourglass_stage0"
+	param{lr_mult: 1 decay_mult: 1}
+	param{lr_mult: 2 decay_mult: 0}
+	convolution_param{
+		num_output: 128 ## nFeat / 2
+		kernel_size: 1
+		stride: 1
+		weight_filler{
+			type: "gaussian"
+			std: 0.01
+		}
+		bias_filler{
+			type: "constant"
+			value: 0
+		}
+	}
+}
+layer{
+	name: "bn2_uplow1_hourglass_stage0"
+	type: "BatchNorm"
+	bottom: "conv1_uplow1_hourglass_stage0"
+	top: "bn2_uplow1_hourglass_stage0"
+	batch_norm_param{
+		use_global_stats: true
+		moving_averaging_fraction: 0.9
+		eps: 1e-5
+	}
+}
+layer{
+	name: "conv2_uplow1_hourglass_stage0"
+	type: "Convolution"
+	bottom: "bn2_uplow1_hourglass_stage0"
+	top: "conv2_uplow1_hourglass_stage0"
+	param{lr_mult: 1 decay_mult: 1}
+	param{lr_mult: 2 decay_mult: 0}
+	convolution_param{
+		num_output: 128 ## nFeat / 2
+		kernel_size: 3
+		stride: 1
+		pad: 1
+		weight_filler{
+			type: "gaussian"
+			std: 0.01
+		}
+		bias_filler{
+			type: "constant"
+			value: 0
+		}
+	}
+}
+layer{
+	name: "bn3_uplow1_hourglass_stage0"
+	type: "BatchNorm"
+	bottom: "conv2_uplow1_hourglass_stage0"
+	top: "bn3_uplow1_hourglass_stage0"
+	batch_norm_param{
+		use_global_stats: true
+		moving_averaging_fraction: 0.9
+		eps: 1e-5
+	}
+}
+layer{
+	name: "conv3_uplow1_hourglass_stage0"
+	type: "Convolution"
+	bottom: "bn3_uplow1_hourglass_stage0"
+	top: "conv3_uplow1_hourglass_stage0"
+	param{lr_mult: 1 decay_mult: 1}
+	param{lr_mult: 2 decay_mult: 0}
+	convolution_param{
+		num_output: 256 ## nFeat
+		kernel_size: 1
+		stride: 1
+		weight_filler{
+			type: "gaussian"
+			std: 0.01
+		}
+		bias_filler{
+			type: "constant"
+			value: 0
+		}
+	}
+}
+layer{
+	name: "elt_uplow1_hourglass_stage0"
+	type: "Eltwise"
+	bottom: "conv3_uplow1_hourglass_stage0"
+	bottom: "skip_uplow1_hourglass_stage0"
+	top: "elt_uplow1_hourglass_stage0"
+	eltwise_param{
+		operation: SUM
+	}
+}
+layer{
+	name: "Elt1_hourglass_stage0"
+	type: "Eltwise"
+	bottom: "elt_uplow1_hourglass_stage0"
+	bottom: "elt_up1_hourglass_stage0"
+	top: "Elt1_hourglass_stage0"
+	eltwise_param{
+		operation: SUM
+	}
+}
+
+layer{
+	name: "dropout_hourglass_stage0"
+	type: "Dropout"
+	bottom: "Elt1_hourglass_stage0"
+	top: "dropout_hourglass_stage0"
+	dropout_param{
+		dropout_ratio: 0.2
+	}
+}
+layer{
+	name: "conv1_hourglass_stage0"
+	type: "Convolution"
+	bottom: "dropout_hourglass_stage0"
+	top: "conv1_hourglass_stage0"
+	param{lr_mult: 1 decay_mult: 1}
+	param{lr_mult: 2 decay_mult: 0}
+	convolution_param{
+		num_output: 256 ## nFeat
+		kernel_size: 1
+		stride: 1
+		weight_filler{
+			type: "gaussian"
+			std: 0.01
+		}
+		bias_filler{
+			type: "constant"
+			value: 0
+		}
+	}
+}
+layer{
+	name: "bn1_hourglass_stage0"
+	type: "BatchNorm"
+	bottom: "conv1_hourglass_stage0"
+	top: "bn1_hourglass_stage0"
+	batch_norm_param{
+		use_global_stats: true
+		moving_averaging_fraction: 0.9
+		eps: 1e-5
+	}
+}
+layer{
+	name: "out_hourglass_stage0"
+	type: "Convolution"
+	bottom: "bn1_hourglass_stage0"
+	top: "out_hourglass_stage0"
+	param{lr_mult: 0.00025 decay_rate: 0.96}
+	param{lr_mult: 0 decay_rate: 0}
+	convolution_param{
+		num_output: 16 ## outDim, number of output Dimension (16 for MPII)
+		kernel_size: 1
+		stride: 1
+		weight_filler{
+			type: "gaussian"
+			std: 0.01
+		}
+		bias_filler{
+			type: "constant"
+			value: 0
+		}
+	}
+}
+layer{
+	name: "out2_hourglass_stage0"
+	type: "Convolution"
+	bottom: "out_hourglass_stage0"
+	top: "out2_hourglass_stage0"
+	param{lr_mult: 0.00025 decay_mult: 0.96}
+	param{lr_mult: 0 decay_mult: 0}
+	convolution_param{
+		num_output: 256 ## nFeat
+		kernel_size: 1
+		stride: 1
+		weight_filler{
+			type: "gaussian"
+			std: 0.01
+		}
+		bias_filler{
+			type: "constant"
+			value: 0
+		}
+	}
+}
+layer{
+	name: "conv2_hourglass_stage0"
+	type: "Convolution"
+	bottom: "bn1_hourglass_stage0"
+	top: "conv2_hourglass_stage0"
+	param{lr_mult: 0.00025 decay_mult: 0.96}
+	param{lr_mult: 0 decay_mult: 0}
+	convolution_param{
+		num_output: 256 ## nFeat
+		kernel_size: 1
+		stride: 1
+		weight_filler{
+			type: "gaussian"
+			std: 0.01
+		}
+		bias_filler{
+			type: "constant"
+			value: 0
+		}
+	}
+}
+layer{
+	name: "sum_hourglass_stage0"
+	type: "Eltwise"
+	bottom: "out2_hourglass_stage0"
+	bottom: "conv2_hourglass_stage0"
+	bottom: "elt_rb3_prepro"
+	top: "sum_hourglass_stage0"
+	eltwise_param{
+		operation: SUM
+	}
+}
+
+## ============================ hourglass_stage1 ======================================
+
+# number of downsampling step: nLow = 4
+# number of output features: nFeat = 256
+
+## ==== hourglass_stage1 ====
+## up1_hourglass_stage1
+layer{
+	name: 'skip_up1_hourglass_stage1'
+	type: "Convolution"
+	bottom: "sum_hourglass_stage0"
+	top: "skip_up1_hourglass_stage1"
+    param { lr_mult: 1 decay_mult: 1 }
+    param { lr_mult: 2 decay_mult: 0 }
+    convolution_param{
+    	num_output: 256 ## nFeat=256
+    	kernel_size: 1
+    	stride: 1
+    	weight_filler{
+    		type: "gaussian"
+    		std: 0.01
+    	}
+    	bias_filler{
+    		type: "constant"
+    		value: 0
+    	}
+    }
+}
+layer{
+	name: "bn1_up1_hourglass_stage1"
+	type: "BatchNorm"
+	bottom: "sum_hourglass_stage0"
+	top: "bn1_up1_hourglass_stage1"
+	batch_norm_param{
+		use_global_stats: true
+		moving_averaging_fraction: 0.9
+		eps: 1e-5
+	}
+}
+layer{
+	name: "conv1_up1_hourglass_stage1"
+	type: "Convolution"
+	bottom: "bn1_up1_hourglass_stage1"
+	top: "conv1_up1_hourglass_stage1"
+	param{lr_mult: 1 decay_mult: 1}
+	param{lr_mult: 2 decay_mult: 0}
+	convolution_param{
+		num_output: 128 ## nFeat / 2
+		kernel_size: 1
+		stride: 1
+		weight_filler{
+			type: "gaussian"
+			std: 0.01
+		}
+		bias_filler{
+			type: "constant"
+			value: 0
+		}
+	}
+}
+layer{
+	name: "bn2_up1_hourglass_stage1"
+	type: "BatchNorm"
+	bottom: "conv1_up1_hourglass_stage1"
+	top: "bn2_up1_hourglass_stage1"
+	batch_norm_param{
+		use_global_stats: true
+		moving_averaging_fraction: 0.9
+		eps: 1e-5
+	}
+}
+layer{
+	name: "conv2_up1_hourglass_stage1"
+	type: "Convolution"
+	bottom: "bn2_up1_hourglass_stage1"
+	top: "conv2_up1_hourglass_stage1"
+	param{lr_mult: 1 decay_mult: 1}
+	param{lr_mult: 2 decay_mult: 0}
+	convolution_param{
+		num_output: 128 ## nFeat / 2
+		kernel_size: 3
+		stride: 1
+		pad: 1
+		weight_filler{
+			type: "gaussian"
+			std: 0.01
+		}
+		bias_filler{
+			type: "constant"
+			value: 0
+		}
+	}
+}
+layer{
+	name: "bn3_up1_hourglass_stage1"
+	type: "BatchNorm"
+	bottom: "conv2_up1_hourglass_stage1"
+	top: "bn3_up1_hourglass_stage1"
+	batch_norm_param{
+		use_global_stats: true
+		moving_averaging_fraction: 0.9
+		eps: 1e-5
+	}
+}
+layer{
+	name: "conv3_up1_hourglass_stage1"
+	type: "Convolution"
+	bottom: "bn3_up1_hourglass_stage1"
+	top: "conv3_up1_hourglass_stage1"
+	param{lr_mult: 1 decay_mult: 1}
+	param{lr_mult: 2 decay_mult: 0}
+	convolution_param{
+		num_output: 256 ## nFeat
+		kernel_size: 1
+		stride: 1
+		weight_filler{
+			type: "gaussian"
+			std: 0.01
+		}
+		bias_filler{
+			type: "constant"
+			value: 0
+		}
+	}
+}
+layer{
+	name: "elt_up1_hourglass_stage1"
+	type: "Eltwise"
+	bottom: "conv3_up1_hourglass_stage1"
+	bottom: "skip_up1_hourglass_stage1"
+	top: "elt_up1_hourglass_stage1"
+	eltwise_param{
+		operation: SUM
+	}
+}
+
+##=== low1_hourglass_stage1
+layer{
+	name: "pool_low1_hourglass_stage1"
+	type: "Pooling"
+	bottom: "sum_hourglass_stage0"
+	top: "pool_low1_hourglass_stage1"
+	pooling_param{
+		pool: MAX
+		kernel_size: 2
+		stride: 2
+	}
+}
+layer{
+	name: 'skip_low1_hourglass_stage1'
+	type: "Convolution"
+	bottom: "pool_low1_hourglass_stage1"
+	top: "skip_low1_hourglass_stage1"
+    param { lr_mult: 1 decay_mult: 1 }
+    param { lr_mult: 2 decay_mult: 0 }
+    convolution_param{
+    	num_output: 256 ## nFeat=256
+    	kernel_size: 1
+    	stride: 1
+    	weight_filler{
+    		type: "gaussian"
+    		std: 0.01
+    	}
+    	bias_filler{
+    		type: "constant"
+    		value: 0
+    	}
+    }
+}
+layer{
+	name: "bn1_low1_hourglass_stage1"
+	type: "BatchNorm"
+	bottom: "pool_low1_hourglass_stage1"
+	top: "bn1_low1_hourglass_stage1"
+	batch_norm_param{
+		use_global_stats: true
+		moving_averaging_fraction: 0.9
+		eps: 1e-5
+	}
+}
+layer{
+	name: "conv1_low1_hourglass_stage1"
+	type: "Convolution"
+	bottom: "bn1_low1_hourglass_stage1"
+	top: "conv1_low1_hourglass_stage1"
+	param{lr_mult: 1 decay_mult: 1}
+	param{lr_mult: 2 decay_mult: 0}
+	convolution_param{
+		num_output: 128 ## nFeat / 2
+		kernel_size: 1
+		stride: 1
+		weight_filler{
+			type: "gaussian"
+			std: 0.01
+		}
+		bias_filler{
+			type: "constant"
+			value: 0
+		}
+	}
+}
+layer{
+	name: "bn2_low1_hourglass_stage1"
+	type: "BatchNorm"
+	bottom: "conv1_low1_hourglass_stage1"
+	top: "bn2_low1_hourglass_stage1"
+	batch_norm_param{
+		use_global_stats: true
+		moving_averaging_fraction: 0.9
+		eps: 1e-5
+	}
+}
+layer{
+	name: "conv2_low1_hourglass_stage1"
+	type: "Convolution"
+	bottom: "bn2_low1_hourglass_stage1"
+	top: "conv2_low1_hourglass_stage1"
+	param{lr_mult: 1 decay_mult: 1}
+	param{lr_mult: 2 decay_mult: 0}
+	convolution_param{
+		num_output: 128 ## nFeat / 2
+		kernel_size: 3
+		stride: 1
+		pad: 1
+		weight_filler{
+			type: "gaussian"
+			std: 0.01
+		}
+		bias_filler{
+			type: "constant"
+			value: 0
+		}
+	}
+}
+layer{
+	name: "bn3_low1_hourglass_stage1"
+	type: "BatchNorm"
+	bottom: "conv2_low1_hourglass_stage1"
+	top: "bn3_low1_hourglass_stage1"
+	batch_norm_param{
+		use_global_stats: true
+		moving_averaging_fraction: 0.9
+		eps: 1e-5
+	}
+}
+layer{
+	name: "conv3_low1_hourglass_stage1"
+	type: "Convolution"
+	bottom: "bn3_low1_hourglass_stage1"
+	top: "conv3_low1_hourglass_stage1"
+	param{lr_mult: 1 decay_mult: 1}
+	param{lr_mult: 2 decay_mult: 0}
+	convolution_param{
+		num_output: 256 ## nFeat
+		kernel_size: 1
+		stride: 1
+		weight_filler{
+			type: "gaussian"
+			std: 0.01
+		}
+		bias_filler{
+			type: "constant"
+			value: 0
+		}
+	}
+}
+layer{
+	name: "elt_low1_hourglass_stage1"
+	type: "Eltwise"
+	bottom: "conv3_low1_hourglass_stage1"
+	bottom: "skip_low1_hourglass_stage1"
+	top: "elt_low1_hourglass_stage1"
+	eltwise_param{
+		operation: SUM
+	}
+}
+
+##==== up2_hourglass_stage1
+layer{
+	name: 'skip_up2_hourglass_stage1'
+	type: "Convolution"
+	bottom: "elt_low1_hourglass_stage1"
+	top: "skip_up2_hourglass_stage1"
+    param { lr_mult: 1 decay_mult: 1 }
+    param { lr_mult: 2 decay_mult: 0 }
+    convolution_param{
+    	num_output: 256 ## nFeat=256
+    	kernel_size: 1
+    	stride: 1
+    	weight_filler{
+    		type: "gaussian"
+    		std: 0.01
+    	}
+    	bias_filler{
+    		type: "constant"
+    		value: 0
+    	}
+    }
+}
+layer{
+	name: "bn1_up2_hourglass_stage1"
+	type: "BatchNorm"
+	bottom: "elt_low1_hourglass_stage1"
+	top: "bn1_up2_hourglass_stage1"
+	batch_norm_param{
+		use_global_stats: true
+		moving_averaging_fraction: 0.9
+		eps: 1e-5
+	}
+}
+layer{
+	name: "conv1_up2_hourglass_stage1"
+	type: "Convolution"
+	bottom: "bn1_up2_hourglass_stage1"
+	top: "conv1_up2_hourglass_stage1"
+	param{lr_mult: 1 decay_mult: 1}
+	param{lr_mult: 2 decay_mult: 0}
+	convolution_param{
+		num_output: 128 ## nFeat / 2
+		kernel_size: 1
+		stride: 1
+		weight_filler{
+			type: "gaussian"
+			std: 0.01
+		}
+		bias_filler{
+			type: "constant"
+			value: 0
+		}
+	}
+}
+layer{
+	name: "bn2_up2_hourglass_stage1"
+	type: "BatchNorm"
+	bottom: "conv1_up2_hourglass_stage1"
+	top: "bn2_up2_hourglass_stage1"
+	batch_norm_param{
+		use_global_stats: true
+		moving_averaging_fraction: 0.9
+		eps: 1e-5
+	}
+}
+layer{
+	name: "conv2_up2_hourglass_stage1"
+	type: "Convolution"
+	bottom: "bn2_up2_hourglass_stage1"
+	top: "conv2_up2_hourglass_stage1"
+	param{lr_mult: 1 decay_mult: 1}
+	param{lr_mult: 2 decay_mult: 0}
+	convolution_param{
+		num_output: 128 ## nFeat / 2
+		kernel_size: 3
+		stride: 1
+		pad: 1
+		weight_filler{
+			type: "gaussian"
+			std: 0.01
+		}
+		bias_filler{
+			type: "constant"
+			value: 0
+		}
+	}
+}
+layer{
+	name: "bn3_up2_hourglass_stage1"
+	type: "BatchNorm"
+	bottom: "conv2_up2_hourglass_stage1"
+	top: "bn3_up2_hourglass_stage1"
+	batch_norm_param{
+		use_global_stats: true
+		moving_averaging_fraction: 0.9
+		eps: 1e-5
+	}
+}
+layer{
+	name: "conv3_up2_hourglass_stage1"
+	type: "Convolution"
+	bottom: "bn3_up2_hourglass_stage1"
+	top: "conv3_up2_hourglass_stage1"
+	param{lr_mult: 1 decay_mult: 1}
+	param{lr_mult: 2 decay_mult: 0}
+	convolution_param{
+		num_output: 256 ## nFeat
+		kernel_size: 1
+		stride: 1
+		weight_filler{
+			type: "gaussian"
+			std: 0.01
+		}
+		bias_filler{
+			type: "constant"
+			value: 0
+		}
+	}
+}
+layer{
+	name: "elt_up2_hourglass_stage1"
+	type: "Eltwise"
+	bottom: "conv3_up2_hourglass_stage1"
+	bottom: "skip_up2_hourglass_stage1"
+	top: "elt_up2_hourglass_stage1"
+	eltwise_param{
+		operation: SUM
+	}
+}
+##==== low2_hourglass_stage1
+layer{
+	name: "pool_low2_hourglass_stage1"
+	type: "Pooling"
+	bottom: "elt_low1_hourglass_stage1"
+	top: "pool_low2_hourglass_stage1"
+	pooling_param{
+		pool: MAX
+		kernel_size: 2
+		stride: 2
+	}
+}
+layer{
+	name: 'skip_low2_hourglass_stage1'
+	type: "Convolution"
+	bottom: "pool_low2_hourglass_stage1"
+	top: "skip_low2_hourglass_stage1"
+    param { lr_mult: 1 decay_mult: 1 }
+    param { lr_mult: 2 decay_mult: 0 }
+    convolution_param{
+    	num_output: 256 ## nFeat=256
+    	kernel_size: 1
+    	stride: 1
+    	weight_filler{
+    		type: "gaussian"
+    		std: 0.01
+    	}
+    	bias_filler{
+    		type: "constant"
+    		value: 0
+    	}
+    }
+}
+layer{
+	name: "bn1_low2_hourglass_stage1"
+	type: "BatchNorm"
+	bottom: "pool_low2_hourglass_stage1"
+	top: "bn1_low2_hourglass_stage1"
+	batch_norm_param{
+		use_global_stats: true
+		moving_averaging_fraction: 0.9
+		eps: 1e-5
+	}
+}
+layer{
+	name: "conv1_low2_hourglass_stage1"
+	type: "Convolution"
+	bottom: "bn1_low2_hourglass_stage1"
+	top: "conv1_low2_hourglass_stage1"
+	param{lr_mult: 1 decay_mult: 1}
+	param{lr_mult: 2 decay_mult: 0}
+	convolution_param{
+		num_output: 128 ## nFeat / 2
+		kernel_size: 1
+		stride: 1
+		weight_filler{
+			type: "gaussian"
+			std: 0.01
+		}
+		bias_filler{
+			type: "constant"
+			value: 0
+		}
+	}
+}
+layer{
+	name: "bn2_low2_hourglass_stage1"
+	type: "BatchNorm"
+	bottom: "conv1_low2_hourglass_stage1"
+	top: "bn2_low2_hourglass_stage1"
+	batch_norm_param{
+		use_global_stats: true
+		moving_averaging_fraction: 0.9
+		eps: 1e-5
+	}
+}
+layer{
+	name: "conv2_low2_hourglass_stage1"
+	type: "Convolution"
+	bottom: "bn2_low2_hourglass_stage1"
+	top: "conv2_low2_hourglass_stage1"
+	param{lr_mult: 1 decay_mult: 1}
+	param{lr_mult: 2 decay_mult: 0}
+	convolution_param{
+		num_output: 128 ## nFeat / 2
+		kernel_size: 3
+		stride: 1
+		pad: 1
+		weight_filler{
+			type: "gaussian"
+			std: 0.01
+		}
+		bias_filler{
+			type: "constant"
+			value: 0
+		}
+	}
+}
+layer{
+	name: "bn3_low2_hourglass_stage1"
+	type: "BatchNorm"
+	bottom: "conv2_low2_hourglass_stage1"
+	top: "bn3_low2_hourglass_stage1"
+	batch_norm_param{
+		use_global_stats: true
+		moving_averaging_fraction: 0.9
+		eps: 1e-5
+	}
+}
+layer{
+	name: "conv3_low2_hourglass_stage1"
+	type: "Convolution"
+	bottom: "bn3_low2_hourglass_stage1"
+	top: "conv3_low2_hourglass_stage1"
+	param{lr_mult: 1 decay_mult: 1}
+	param{lr_mult: 2 decay_mult: 0}
+	convolution_param{
+		num_output: 256 ## nFeat
+		kernel_size: 1
+		stride: 1
+		weight_filler{
+			type: "gaussian"
+			std: 0.01
+		}
+		bias_filler{
+			type: "constant"
+			value: 0
+		}
+	}
+}
+layer{
+	name: "elt_low2_hourglass_stage1"
+	type: "Eltwise"
+	bottom: "conv3_low2_hourglass_stage1"
+	bottom: "skip_low2_hourglass_stage1"
+	top: "elt_low2_hourglass_stage1"
+	eltwise_param{
+		operation: SUM
+	}
+}
+##==== up3_hourglass_stage1
+layer{
+	name: 'skip_up3_hourglass_stage1'
+	type: "Convolution"
+	bottom: "elt_low2_hourglass_stage1"
+	top: "skip_up3_hourglass_stage1"
+    param { lr_mult: 1 decay_mult: 1 }
+    param { lr_mult: 2 decay_mult: 0 }
+    convolution_param{
+    	num_output: 256 ## nFeat=256
+    	kernel_size: 1
+    	stride: 1
+    	weight_filler{
+    		type: "gaussian"
+    		std: 0.01
+    	}
+    	bias_filler{
+    		type: "constant"
+    		value: 0
+    	}
+    }
+}
+layer{
+	name: "bn1_up3_hourglass_stage1"
+	type: "BatchNorm"
+	bottom: "elt_low2_hourglass_stage1"
+	top: "bn1_up3_hourglass_stage1"
+	batch_norm_param{
+		use_global_stats: true
+		moving_averaging_fraction: 0.9
+		eps: 1e-5
+	}
+}
+layer{
+	name: "conv1_up3_hourglass_stage1"
+	type: "Convolution"
+	bottom: "bn1_up3_hourglass_stage1"
+	top: "conv1_up3_hourglass_stage1"
+	param{lr_mult: 1 decay_mult: 1}
+	param{lr_mult: 2 decay_mult: 0}
+	convolution_param{
+		num_output: 128 ## nFeat / 2
+		kernel_size: 1
+		stride: 1
+		weight_filler{
+			type: "gaussian"
+			std: 0.01
+		}
+		bias_filler{
+			type: "constant"
+			value: 0
+		}
+	}
+}
+layer{
+	name: "bn2_up3_hourglass_stage1"
+	type: "BatchNorm"
+	bottom: "conv1_up3_hourglass_stage1"
+	top: "bn2_up3_hourglass_stage1"
+	batch_norm_param{
+		use_global_stats: true
+		moving_averaging_fraction: 0.9
+		eps: 1e-5
+	}
+}
+layer{
+	name: "conv2_up3_hourglass_stage1"
+	type: "Convolution"
+	bottom: "bn2_up3_hourglass_stage1"
+	top: "conv2_up3_hourglass_stage1"
+	param{lr_mult: 1 decay_mult: 1}
+	param{lr_mult: 2 decay_mult: 0}
+	convolution_param{
+		num_output: 128 ## nFeat / 2
+		kernel_size: 3
+		stride: 1
+		pad: 1
+		weight_filler{
+			type: "gaussian"
+			std: 0.01
+		}
+		bias_filler{
+			type: "constant"
+			value: 0
+		}
+	}
+}
+layer{
+	name: "bn3_up3_hourglass_stage1"
+	type: "BatchNorm"
+	bottom: "conv2_up3_hourglass_stage1"
+	top: "bn3_up3_hourglass_stage1"
+	batch_norm_param{
+		use_global_stats: true
+		moving_averaging_fraction: 0.9
+		eps: 1e-5
+	}
+}
+layer{
+	name: "conv3_up3_hourglass_stage1"
+	type: "Convolution"
+	bottom: "bn3_up3_hourglass_stage1"
+	top: "conv3_up3_hourglass_stage1"
+	param{lr_mult: 1 decay_mult: 1}
+	param{lr_mult: 2 decay_mult: 0}
+	convolution_param{
+		num_output: 256 ## nFeat
+		kernel_size: 1
+		stride: 1
+		weight_filler{
+			type: "gaussian"
+			std: 0.01
+		}
+		bias_filler{
+			type: "constant"
+			value: 0
+		}
+	}
+}
+layer{
+	name: "elt_up3_hourglass_stage1"
+	type: "Eltwise"
+	bottom: "conv3_up3_hourglass_stage1"
+	bottom: "skip_up3_hourglass_stage1"
+	top: "elt_up3_hourglass_stage1"
+	eltwise_param{
+		operation: SUM
+	}
+}
+##==== low3_hourglass_stage1
+layer{
+	name: "pool_low3_hourglass_stage1"
+	type: "Pooling"
+	bottom: "elt_low2_hourglass_stage1"
+	top: "pool_low3_hourglass_stage1"
+	pooling_param{
+		pool: MAX
+		kernel_size: 2
+		stride: 2
+	}
+}
+layer{
+	name: 'skip_low3_hourglass_stage1'
+	type: "Convolution"
+	bottom: "pool_low3_hourglass_stage1"
+	top: "skip_low3_hourglass_stage1"
+    param { lr_mult: 1 decay_mult: 1 }
+    param { lr_mult: 2 decay_mult: 0 }
+    convolution_param{
+    	num_output: 256 ## nFeat=256
+    	kernel_size: 1
+    	stride: 1
+    	weight_filler{
+    		type: "gaussian"
+    		std: 0.01
+    	}
+    	bias_filler{
+    		type: "constant"
+    		value: 0
+    	}
+    }
+}
+layer{
+	name: "bn1_low3_hourglass_stage1"
+	type: "BatchNorm"
+	bottom: "pool_low3_hourglass_stage1"
+	top: "bn1_low3_hourglass_stage1"
+	batch_norm_param{
+		use_global_stats: true
+		moving_averaging_fraction: 0.9
+		eps: 1e-5
+	}
+}
+layer{
+	name: "conv1_low3_hourglass_stage1"
+	type: "Convolution"
+	bottom: "bn1_low3_hourglass_stage1"
+	top: "conv1_low3_hourglass_stage1"
+	param{lr_mult: 1 decay_mult: 1}
+	param{lr_mult: 2 decay_mult: 0}
+	convolution_param{
+		num_output: 128 ## nFeat / 2
+		kernel_size: 1
+		stride: 1
+		weight_filler{
+			type: "gaussian"
+			std: 0.01
+		}
+		bias_filler{
+			type: "constant"
+			value: 0
+		}
+	}
+}
+layer{
+	name: "bn2_low3_hourglass_stage1"
+	type: "BatchNorm"
+	bottom: "conv1_low3_hourglass_stage1"
+	top: "bn2_low3_hourglass_stage1"
+	batch_norm_param{
+		use_global_stats: true
+		moving_averaging_fraction: 0.9
+		eps: 1e-5
+	}
+}
+layer{
+	name: "conv2_low3_hourglass_stage1"
+	type: "Convolution"
+	bottom: "bn2_low3_hourglass_stage1"
+	top: "conv2_low3_hourglass_stage1"
+	param{lr_mult: 1 decay_mult: 1}
+	param{lr_mult: 2 decay_mult: 0}
+	convolution_param{
+		num_output: 128 ## nFeat / 2
+		kernel_size: 3
+		stride: 1
+		pad: 1
+		weight_filler{
+			type: "gaussian"
+			std: 0.01
+		}
+		bias_filler{
+			type: "constant"
+			value: 0
+		}
+	}
+}
+layer{
+	name: "bn3_low3_hourglass_stage1"
+	type: "BatchNorm"
+	bottom: "conv2_low3_hourglass_stage1"
+	top: "bn3_low3_hourglass_stage1"
+	batch_norm_param{
+		use_global_stats: true
+		moving_averaging_fraction: 0.9
+		eps: 1e-5
+	}
+}
+layer{
+	name: "conv3_low3_hourglass_stage1"
+	type: "Convolution"
+	bottom: "bn3_low3_hourglass_stage1"
+	top: "conv3_low3_hourglass_stage1"
+	param{lr_mult: 1 decay_mult: 1}
+	param{lr_mult: 2 decay_mult: 0}
+	convolution_param{
+		num_output: 256 ## nFeat
+		kernel_size: 1
+		stride: 1
+		weight_filler{
+			type: "gaussian"
+			std: 0.01
+		}
+		bias_filler{
+			type: "constant"
+			value: 0
+		}
+	}
+}
+layer{
+	name: "elt_low3_hourglass_stage1"
+	type: "Eltwise"
+	bottom: "conv3_low3_hourglass_stage1"
+	bottom: "skip_low3_hourglass_stage1"
+	top: "elt_low3_hourglass_stage1"
+	eltwise_param{
+		operation: SUM
+	}
+}
+##==== up4_hourglass_stage1
+layer{
+	name: 'skip_up4_hourglass_stage1'
+	type: "Convolution"
+	bottom: "elt_low3_hourglass_stage1"
+	top: "skip_up4_hourglass_stage1"
+    param { lr_mult: 1 decay_mult: 1 }
+    param { lr_mult: 2 decay_mult: 0 }
+    convolution_param{
+    	num_output: 256 ## nFeat=256
+    	kernel_size: 1
+    	stride: 1
+    	weight_filler{
+    		type: "gaussian"
+    		std: 0.01
+    	}
+    	bias_filler{
+    		type: "constant"
+    		value: 0
+    	}
+    }
+}
+layer{
+	name: "bn1_up4_hourglass_stage1"
+	type: "BatchNorm"
+	bottom: "elt_low3_hourglass_stage1"
+	top: "bn1_up4_hourglass_stage1"
+	batch_norm_param{
+		use_global_stats: true
+		moving_averaging_fraction: 0.9
+		eps: 1e-5
+	}
+}
+layer{
+	name: "conv1_up4_hourglass_stage1"
+	type: "Convolution"
+	bottom: "bn1_up4_hourglass_stage1"
+	top: "conv1_up4_hourglass_stage1"
+	param{lr_mult: 1 decay_mult: 1}
+	param{lr_mult: 2 decay_mult: 0}
+	convolution_param{
+		num_output: 128 ## nFeat / 2
+		kernel_size: 1
+		stride: 1
+		weight_filler{
+			type: "gaussian"
+			std: 0.01
+		}
+		bias_filler{
+			type: "constant"
+			value: 0
+		}
+	}
+}
+layer{
+	name: "bn2_up4_hourglass_stage1"
+	type: "BatchNorm"
+	bottom: "conv1_up4_hourglass_stage1"
+	top: "bn2_up4_hourglass_stage1"
+	batch_norm_param{
+		use_global_stats: true
+		moving_averaging_fraction: 0.9
+		eps: 1e-5
+	}
+}
+layer{
+	name: "conv2_up4_hourglass_stage1"
+	type: "Convolution"
+	bottom: "bn2_up4_hourglass_stage1"
+	top: "conv2_up4_hourglass_stage1"
+	param{lr_mult: 1 decay_mult: 1}
+	param{lr_mult: 2 decay_mult: 0}
+	convolution_param{
+		num_output: 128 ## nFeat / 2
+		kernel_size: 3
+		stride: 1
+		pad: 1
+		weight_filler{
+			type: "gaussian"
+			std: 0.01
+		}
+		bias_filler{
+			type: "constant"
+			value: 0
+		}
+	}
+}
+layer{
+	name: "bn3_up4_hourglass_stage1"
+	type: "BatchNorm"
+	bottom: "conv2_up4_hourglass_stage1"
+	top: "bn3_up4_hourglass_stage1"
+	batch_norm_param{
+		use_global_stats: true
+		moving_averaging_fraction: 0.9
+		eps: 1e-5
+	}
+}
+layer{
+	name: "conv3_up4_hourglass_stage1"
+	type: "Convolution"
+	bottom: "bn3_up4_hourglass_stage1"
+	top: "conv3_up4_hourglass_stage1"
+	param{lr_mult: 1 decay_mult: 1}
+	param{lr_mult: 2 decay_mult: 0}
+	convolution_param{
+		num_output: 256 ## nFeat
+		kernel_size: 1
+		stride: 1
+		weight_filler{
+			type: "gaussian"
+			std: 0.01
+		}
+		bias_filler{
+			type: "constant"
+			value: 0
+		}
+	}
+}
+layer{
+	name: "elt_up4_hourglass_stage1"
+	type: "Eltwise"
+	bottom: "conv3_up4_hourglass_stage1"
+	bottom: "skip_up4_hourglass_stage1"
+	top: "elt_up4_hourglass_stage1"
+	eltwise_param{
+		operation: SUM
+	}
+}
+##==== low4_hourglass_stage1
+layer{
+	name: "pool_low4_hourglass_stage1"
+	type: "Pooling"
+	bottom: "elt_low3_hourglass_stage1"
+	top: "pool_low4_hourglass_stage1"
+	pooling_param{
+		pool: MAX
+		kernel_size: 2
+		stride: 2
+	}
+}
+layer{
+	name: 'skip_low4_hourglass_stage1'
+	type: "Convolution"
+	bottom: "pool_low4_hourglass_stage1"
+	top: "skip_low4_hourglass_stage1"
+    param { lr_mult: 1 decay_mult: 1 }
+    param { lr_mult: 2 decay_mult: 0 }
+    convolution_param{
+    	num_output: 256 ## nFeat=256
+    	kernel_size: 1
+    	stride: 1
+    	weight_filler{
+    		type: "gaussian"
+    		std: 0.01
+    	}
+    	bias_filler{
+    		type: "constant"
+    		value: 0
+    	}
+    }
+}
+layer{
+	name: "bn1_low4_hourglass_stage1"
+	type: "BatchNorm"
+	bottom: "pool_low4_hourglass_stage1"
+	top: "bn1_low4_hourglass_stage1"
+	batch_norm_param{
+		use_global_stats: true
+		moving_averaging_fraction: 0.9
+		eps: 1e-5
+	}
+}
+layer{
+	name: "conv1_low4_hourglass_stage1"
+	type: "Convolution"
+	bottom: "bn1_low4_hourglass_stage1"
+	top: "conv1_low4_hourglass_stage1"
+	param{lr_mult: 1 decay_mult: 1}
+	param{lr_mult: 2 decay_mult: 0}
+	convolution_param{
+		num_output: 128 ## nFeat / 2
+		kernel_size: 1
+		stride: 1
+		weight_filler{
+			type: "gaussian"
+			std: 0.01
+		}
+		bias_filler{
+			type: "constant"
+			value: 0
+		}
+	}
+}
+layer{
+	name: "bn2_low4_hourglass_stage1"
+	type: "BatchNorm"
+	bottom: "conv1_low4_hourglass_stage1"
+	top: "bn2_low4_hourglass_stage1"
+	batch_norm_param{
+		use_global_stats: true
+		moving_averaging_fraction: 0.9
+		eps: 1e-5
+	}
+}
+layer{
+	name: "conv2_low4_hourglass_stage1"
+	type: "Convolution"
+	bottom: "bn2_low4_hourglass_stage1"
+	top: "conv2_low4_hourglass_stage1"
+	param{lr_mult: 1 decay_mult: 1}
+	param{lr_mult: 2 decay_mult: 0}
+	convolution_param{
+		num_output: 128 ## nFeat / 2
+		kernel_size: 3
+		stride: 1
+		pad: 1
+		weight_filler{
+			type: "gaussian"
+			std: 0.01
+		}
+		bias_filler{
+			type: "constant"
+			value: 0
+		}
+	}
+}
+layer{
+	name: "bn3_low4_hourglass_stage1"
+	type: "BatchNorm"
+	bottom: "conv2_low4_hourglass_stage1"
+	top: "bn3_low4_hourglass_stage1"
+	batch_norm_param{
+		use_global_stats: true
+		moving_averaging_fraction: 0.9
+		eps: 1e-5
+	}
+}
+layer{
+	name: "conv3_low4_hourglass_stage1"
+	type: "Convolution"
+	bottom: "bn3_low4_hourglass_stage1"
+	top: "conv3_low4_hourglass_stage1"
+	param{lr_mult: 1 decay_mult: 1}
+	param{lr_mult: 2 decay_mult: 0}
+	convolution_param{
+		num_output: 256 ## nFeat
+		kernel_size: 1
+		stride: 1
+		weight_filler{
+			type: "gaussian"
+			std: 0.01
+		}
+		bias_filler{
+			type: "constant"
+			value: 0
+		}
+	}
+}
+layer{
+	name: "elt_low4_hourglass_stage1"
+	type: "Eltwise"
+	bottom: "conv3_low4_hourglass_stage1"
+	bottom: "skip_low4_hourglass_stage1"
+	top: "elt_low4_hourglass_stage1"
+	eltwise_param{
+		operation: SUM
+	}
+}
+##==== low4_2_hourglass_stage1
+layer{
+	name: 'skip_low4_2_hourglass_stage1'
+	type: "Convolution"
+	bottom: "elt_low4_hourglass_stage1"
+	top: "skip_low4_2_hourglass_stage1"
+    param { lr_mult: 1 decay_mult: 1 }
+    param { lr_mult: 2 decay_mult: 0 }
+    convolution_param{
+    	num_output: 256 ## nFeat=256
+    	kernel_size: 1
+    	stride: 1
+    	weight_filler{
+    		type: "gaussian"
+    		std: 0.01
+    	}
+    	bias_filler{
+    		type: "constant"
+    		value: 0
+    	}
+    }
+}
+layer{
+	name: "bn1_low4_2_hourglass_stage1"
+	type: "BatchNorm"
+	bottom: "elt_low4_hourglass_stage1"
+	top: "bn1_low4_2_hourglass_stage1"
+	batch_norm_param{
+		use_global_stats: true
+		moving_averaging_fraction: 0.9
+		eps: 1e-5
+	}
+}
+layer{
+	name: "conv1_low4_2_hourglass_stage1"
+	type: "Convolution"
+	bottom: "bn1_low4_2_hourglass_stage1"
+	top: "conv1_low4_2_hourglass_stage1"
+	param{lr_mult: 1 decay_mult: 1}
+	param{lr_mult: 2 decay_mult: 0}
+	convolution_param{
+		num_output: 128 ## nFeat / 2
+		kernel_size: 1
+		stride: 1
+		weight_filler{
+			type: "gaussian"
+			std: 0.01
+		}
+		bias_filler{
+			type: "constant"
+			value: 0
+		}
+	}
+}
+layer{
+	name: "bn2_low4_2_hourglass_stage1"
+	type: "BatchNorm"
+	bottom: "conv1_low4_2_hourglass_stage1"
+	top: "bn2_low4_2_hourglass_stage1"
+	batch_norm_param{
+		use_global_stats: true
+		moving_averaging_fraction: 0.9
+		eps: 1e-5
+	}
+}
+layer{
+	name: "conv2_low4_2_hourglass_stage1"
+	type: "Convolution"
+	bottom: "bn2_low4_2_hourglass_stage1"
+	top: "conv2_low4_2_hourglass_stage1"
+	param{lr_mult: 1 decay_mult: 1}
+	param{lr_mult: 2 decay_mult: 0}
+	convolution_param{
+		num_output: 128 ## nFeat / 2
+		kernel_size: 3
+		stride: 1
+		pad: 1
+		weight_filler{
+			type: "gaussian"
+			std: 0.01
+		}
+		bias_filler{
+			type: "constant"
+			value: 0
+		}
+	}
+}
+layer{
+	name: "bn3_low4_2_hourglass_stage1"
+	type: "BatchNorm"
+	bottom: "conv2_low4_2_hourglass_stage1"
+	top: "bn3_low4_2_hourglass_stage1"
+	batch_norm_param{
+		use_global_stats: true
+		moving_averaging_fraction: 0.9
+		eps: 1e-5
+	}
+}
+layer{
+	name: "conv3_low4_2_hourglass_stage1"
+	type: "Convolution"
+	bottom: "bn3_low4_2_hourglass_stage1"
+	top: "conv3_low4_2_hourglass_stage1"
+	param{lr_mult: 1 decay_mult: 1}
+	param{lr_mult: 2 decay_mult: 0}
+	convolution_param{
+		num_output: 256 ## nFeat
+		kernel_size: 1
+		stride: 1
+		weight_filler{
+			type: "gaussian"
+			std: 0.01
+		}
+		bias_filler{
+			type: "constant"
+			value: 0
+		}
+	}
+}
+layer{
+	name: "elt_low4_2_hourglass_stage1"
+	type: "Eltwise"
+	bottom: "conv3_low4_2_hourglass_stage1"
+	bottom: "skip_low4_2_hourglass_stage1"
+	top: "elt_low4_2_hourglass_stage1"
+	eltwise_param{
+		operation: SUM
+	}
+}
+##==== uplow4_hourglass_stage1
+layer{
+	name: "upSample_uplow4_hourglass_stage1"
+	type: "Deconvolution"
+	bottom: "elt_low4_2_hourglass_stage1"
+	top: "upSample_uplow4_hourglass_stage1"
+	convolution_param{
+		kernel_h: 2
+		kernel_w: 2
+		stride_h: 2
+		stride_w: 2
+		pad_h: 0
+		pad_w: 0
+		num_output: 256
+		group: 256
+		bias_term: false
+		weight_filler{
+			type: "bilinear"
+		}
+	}
+	param{lr_mult: 0 decay_mult: 0}
+}
+layer{
+	name: 'skip_uplow4_hourglass_stage1'
+	type: "Convolution"
+	bottom: "upSample_uplow4_hourglass_stage1"
+	top: "skip_uplow4_hourglass_stage1"
+    param { lr_mult: 1 decay_mult: 1 }
+    param { lr_mult: 2 decay_mult: 0 }
+    convolution_param{
+    	num_output: 256 ## nFeat=256
+    	kernel_size: 1
+    	stride: 1
+    	weight_filler{
+    		type: "gaussian"
+    		std: 0.01
+    	}
+    	bias_filler{
+    		type: "constant"
+    		value: 0
+    	}
+    }
+}
+layer{
+	name: "bn1_uplow4_hourglass_stage1"
+	type: "BatchNorm"
+	bottom: "upSample_uplow4_hourglass_stage1"
+	top: "bn1_uplow4_hourglass_stage1"
+	batch_norm_param{
+		use_global_stats: true
+		moving_averaging_fraction: 0.9
+		eps: 1e-5
+	}
+}
+layer{
+	name: "conv1_uplow4_hourglass_stage1"
+	type: "Convolution"
+	bottom: "bn1_uplow4_hourglass_stage1"
+	top: "conv1_uplow4_hourglass_stage1"
+	param{lr_mult: 1 decay_mult: 1}
+	param{lr_mult: 2 decay_mult: 0}
+	convolution_param{
+		num_output: 128 ## nFeat / 2
+		kernel_size: 1
+		stride: 1
+		weight_filler{
+			type: "gaussian"
+			std: 0.01
+		}
+		bias_filler{
+			type: "constant"
+			value: 0
+		}
+	}
+}
+layer{
+	name: "bn2_uplow4_hourglass_stage1"
+	type: "BatchNorm"
+	bottom: "conv1_uplow4_hourglass_stage1"
+	top: "bn2_uplow4_hourglass_stage1"
+	batch_norm_param{
+		use_global_stats: true
+		moving_averaging_fraction: 0.9
+		eps: 1e-5
+	}
+}
+layer{
+	name: "conv2_uplow4_hourglass_stage1"
+	type: "Convolution"
+	bottom: "bn2_uplow4_hourglass_stage1"
+	top: "conv2_uplow4_hourglass_stage1"
+	param{lr_mult: 1 decay_mult: 1}
+	param{lr_mult: 2 decay_mult: 0}
+	convolution_param{
+		num_output: 128 ## nFeat / 2
+		kernel_size: 3
+		stride: 1
+		pad: 1
+		weight_filler{
+			type: "gaussian"
+			std: 0.01
+		}
+		bias_filler{
+			type: "constant"
+			value: 0
+		}
+	}
+}
+layer{
+	name: "bn3_uplow4_hourglass_stage1"
+	type: "BatchNorm"
+	bottom: "conv2_uplow4_hourglass_stage1"
+	top: "bn3_uplow4_hourglass_stage1"
+	batch_norm_param{
+		use_global_stats: true
+		moving_averaging_fraction: 0.9
+		eps: 1e-5
+	}
+}
+layer{
+	name: "conv3_uplow4_hourglass_stage1"
+	type: "Convolution"
+	bottom: "bn3_uplow4_hourglass_stage1"
+	top: "conv3_uplow4_hourglass_stage1"
+	param{lr_mult: 1 decay_mult: 1}
+	param{lr_mult: 2 decay_mult: 0}
+	convolution_param{
+		num_output: 256 ## nFeat
+		kernel_size: 1
+		stride: 1
+		weight_filler{
+			type: "gaussian"
+			std: 0.01
+		}
+		bias_filler{
+			type: "constant"
+			value: 0
+		}
+	}
+}
+layer{
+	name: "elt_uplow4_hourglass_stage1"
+	type: "Eltwise"
+	bottom: "conv3_uplow4_hourglass_stage1"
+	bottom: "skip_uplow4_hourglass_stage1"
+	top: "elt_uplow4_hourglass_stage1"
+	eltwise_param{
+		operation: SUM
+	}
+}
+
+layer{
+	name: "Elt4_hourglass_stage1"
+	type: "Eltwise"
+	bottom: "elt_uplow4_hourglass_stage1"
+	bottom: "elt_up4_hourglass_stage1"
+	top: "Elt4_hourglass_stage1"
+	eltwise_param{
+		operation: SUM
+	}
+}
+##==== uplow3_hourglass_stage1
+layer{
+	name: "upSample_uplow3_hourglass_stage1"
+	type: "Deconvolution"
+	bottom: "Elt4_hourglass_stage1"
+	top: "upSample_uplow3_hourglass_stage1"
+	convolution_param{
+		kernel_h: 2
+		kernel_w: 2
+		stride_h: 2
+		stride_w: 2
+		pad_h: 0
+		pad_w: 0
+		num_output: 256
+		group: 256
+		bias_term: false
+		weight_filler{
+			type: "bilinear"
+		}
+	}
+	param{lr_mult: 0 decay_mult: 0}
+}
+layer{
+	name: 'skip_uplow3_hourglass_stage1'
+	type: "Convolution"
+	bottom: "upSample_uplow3_hourglass_stage1"
+	top: "skip_uplow3_hourglass_stage1"
+    param { lr_mult: 1 decay_mult: 1 }
+    param { lr_mult: 2 decay_mult: 0 }
+    convolution_param{
+    	num_output: 256 ## nFeat=256
+    	kernel_size: 1
+    	stride: 1
+    	weight_filler{
+    		type: "gaussian"
+    		std: 0.01
+    	}
+    	bias_filler{
+    		type: "constant"
+    		value: 0
+    	}
+    }
+}
+layer{
+	name: "bn1_uplow3_hourglass_stage1"
+	type: "BatchNorm"
+	bottom: "upSample_uplow3_hourglass_stage1"
+	top: "bn1_uplow3_hourglass_stage1"
+	batch_norm_param{
+		use_global_stats: true
+		moving_averaging_fraction: 0.9
+		eps: 1e-5
+	}
+}
+layer{
+	name: "conv1_uplow3_hourglass_stage1"
+	type: "Convolution"
+	bottom: "bn1_uplow3_hourglass_stage1"
+	top: "conv1_uplow3_hourglass_stage1"
+	param{lr_mult: 1 decay_mult: 1}
+	param{lr_mult: 2 decay_mult: 0}
+	convolution_param{
+		num_output: 128 ## nFeat / 2
+		kernel_size: 1
+		stride: 1
+		weight_filler{
+			type: "gaussian"
+			std: 0.01
+		}
+		bias_filler{
+			type: "constant"
+			value: 0
+		}
+	}
+}
+layer{
+	name: "bn2_uplow3_hourglass_stage1"
+	type: "BatchNorm"
+	bottom: "conv1_uplow3_hourglass_stage1"
+	top: "bn2_uplow3_hourglass_stage1"
+	batch_norm_param{
+		use_global_stats: true
+		moving_averaging_fraction: 0.9
+		eps: 1e-5
+	}
+}
+layer{
+	name: "conv2_uplow3_hourglass_stage1"
+	type: "Convolution"
+	bottom: "bn2_uplow3_hourglass_stage1"
+	top: "conv2_uplow3_hourglass_stage1"
+	param{lr_mult: 1 decay_mult: 1}
+	param{lr_mult: 2 decay_mult: 0}
+	convolution_param{
+		num_output: 128 ## nFeat / 2
+		kernel_size: 3
+		stride: 1
+		pad: 1
+		weight_filler{
+			type: "gaussian"
+			std: 0.01
+		}
+		bias_filler{
+			type: "constant"
+			value: 0
+		}
+	}
+}
+layer{
+	name: "bn3_uplow3_hourglass_stage1"
+	type: "BatchNorm"
+	bottom: "conv2_uplow3_hourglass_stage1"
+	top: "bn3_uplow3_hourglass_stage1"
+	batch_norm_param{
+		use_global_stats: true
+		moving_averaging_fraction: 0.9
+		eps: 1e-5
+	}
+}
+layer{
+	name: "conv3_uplow3_hourglass_stage1"
+	type: "Convolution"
+	bottom: "bn3_uplow3_hourglass_stage1"
+	top: "conv3_uplow3_hourglass_stage1"
+	param{lr_mult: 1 decay_mult: 1}
+	param{lr_mult: 2 decay_mult: 0}
+	convolution_param{
+		num_output: 256 ## nFeat
+		kernel_size: 1
+		stride: 1
+		weight_filler{
+			type: "gaussian"
+			std: 0.01
+		}
+		bias_filler{
+			type: "constant"
+			value: 0
+		}
+	}
+}
+layer{
+	name: "elt_uplow3_hourglass_stage1"
+	type: "Eltwise"
+	bottom: "conv3_uplow3_hourglass_stage1"
+	bottom: "skip_uplow3_hourglass_stage1"
+	top: "elt_uplow3_hourglass_stage1"
+	eltwise_param{
+		operation: SUM
+	}
+}
+
+layer{
+	name: "Elt3_hourglass_stage1"
+	type: "Eltwise"
+	bottom: "elt_uplow3_hourglass_stage1"
+	bottom: "elt_up3_hourglass_stage1"
+	top: "Elt3_hourglass_stage1"
+	eltwise_param{
+		operation: SUM
+	}
+}
+
+##==== uplow2_hourglass_stage1
+layer{
+	name: "upSample_uplow2_hourglass_stage1"
+	type: "Deconvolution"
+	bottom: "Elt3_hourglass_stage1"
+	top: "upSample_uplow2_hourglass_stage1"
+	convolution_param {
+		kernel_h: 2
+		kernel_w: 2
+		stride_h: 2
+		stride_w: 2
+		pad_h: 0
+		pad_w: 0
+		num_output: 256
+		group: 256
+		bias_term: false
+		weight_filler {
+		  type: "bilinear"
+		}
+	}
+	param {
+		lr_mult: 0
+		decay_mult: 0
+	}
+}
+layer{
+	name: 'skip_uplow2_hourglass_stage1'
+	type: "Convolution"
+	bottom: "upSample_uplow2_hourglass_stage1"
+	top: "skip_uplow2_hourglass_stage1"
+    param { lr_mult: 1 decay_mult: 1 }
+    param { lr_mult: 2 decay_mult: 0 }
+    convolution_param{
+    	num_output: 256 ## nFeat=256
+    	kernel_size: 1
+    	stride: 1
+    	weight_filler{
+    		type: "gaussian"
+    		std: 0.01
+    	}
+    	bias_filler{
+    		type: "constant"
+    		value: 0
+    	}
+    }
+}
+layer{
+	name: "bn1_uplow2_hourglass_stage1"
+	type: "BatchNorm"
+	bottom: "upSample_uplow2_hourglass_stage1"
+	top: "bn1_uplow2_hourglass_stage1"
+	batch_norm_param{
+		use_global_stats: true
+		moving_averaging_fraction: 0.9
+		eps: 1e-5
+	}
+}
+layer{
+	name: "conv1_uplow2_hourglass_stage1"
+	type: "Convolution"
+	bottom: "bn1_uplow2_hourglass_stage1"
+	top: "conv1_uplow2_hourglass_stage1"
+	param{lr_mult: 1 decay_mult: 1}
+	param{lr_mult: 2 decay_mult: 0}
+	convolution_param{
+		num_output: 128 ## nFeat / 2
+		kernel_size: 1
+		stride: 1
+		weight_filler{
+			type: "gaussian"
+			std: 0.01
+		}
+		bias_filler{
+			type: "constant"
+			value: 0
+		}
+	}
+}
+layer{
+	name: "bn2_uplow2_hourglass_stage1"
+	type: "BatchNorm"
+	bottom: "conv1_uplow2_hourglass_stage1"
+	top: "bn2_uplow2_hourglass_stage1"
+	batch_norm_param{
+		use_global_stats: true
+		moving_averaging_fraction: 0.9
+		eps: 1e-5
+	}
+}
+layer{
+	name: "conv2_uplow2_hourglass_stage1"
+	type: "Convolution"
+	bottom: "bn2_uplow2_hourglass_stage1"
+	top: "conv2_uplow2_hourglass_stage1"
+	param{lr_mult: 1 decay_mult: 1}
+	param{lr_mult: 2 decay_mult: 0}
+	convolution_param{
+		num_output: 128 ## nFeat / 2
+		kernel_size: 3
+		stride: 1
+		pad: 1
+		weight_filler{
+			type: "gaussian"
+			std: 0.01
+		}
+		bias_filler{
+			type: "constant"
+			value: 0
+		}
+	}
+}
+layer{
+	name: "bn3_uplow2_hourglass_stage1"
+	type: "BatchNorm"
+	bottom: "conv2_uplow2_hourglass_stage1"
+	top: "bn3_uplow2_hourglass_stage1"
+	batch_norm_param{
+		use_global_stats: true
+		moving_averaging_fraction: 0.9
+		eps: 1e-5
+	}
+}
+layer{
+	name: "conv3_uplow2_hourglass_stage1"
+	type: "Convolution"
+	bottom: "bn3_uplow2_hourglass_stage1"
+	top: "conv3_uplow2_hourglass_stage1"
+	param{lr_mult: 1 decay_mult: 1}
+	param{lr_mult: 2 decay_mult: 0}
+	convolution_param{
+		num_output: 256 ## nFeat
+		kernel_size: 1
+		stride: 1
+		weight_filler{
+			type: "gaussian"
+			std: 0.01
+		}
+		bias_filler{
+			type: "constant"
+			value: 0
+		}
+	}
+}
+layer{
+	name: "elt_uplow2_hourglass_stage1"
+	type: "Eltwise"
+	bottom: "conv3_uplow2_hourglass_stage1"
+	bottom: "skip_uplow2_hourglass_stage1"
+	top: "elt_uplow2_hourglass_stage1"
+	eltwise_param{
+		operation: SUM
+	}
+}
+
+layer{
+	name: "Elt2_hourglass_stage1"
+	type: "Eltwise"
+	bottom: "elt_uplow2_hourglass_stage1"
+	bottom: "elt_up2_hourglass_stage1"
+	top: "Elt2_hourglass_stage1"
+	eltwise_param{
+		operation: SUM
+	}
+}
+
+##==== uplow1_hourglass_stage1
+layer{
+	name: "upSample_uplow1_hourglass_stage1"
+	type: "Deconvolution"
+	bottom: "Elt2_hourglass_stage1"
+	top: "upSample_uplow1_hourglass_stage1"
+	convolution_param {
+		kernel_h: 2
+		kernel_w: 2
+		stride_h: 2
+		stride_w: 2
+		pad_h: 0
+		pad_w: 0
+		num_output: 256
+		group: 256
+		bias_term: false
+		weight_filler {
+		  type: "bilinear"
+		}
+	}
+	param {
+		lr_mult: 0
+		decay_mult: 0
+	}
+}
+layer{
+	name: 'skip_uplow1_hourglass_stage1'
+	type: "Convolution"
+	bottom: "upSample_uplow1_hourglass_stage1"
+	top: "skip_uplow1_hourglass_stage1"
+    param { lr_mult: 1 decay_mult: 1 }
+    param { lr_mult: 2 decay_mult: 0 }
+    convolution_param{
+    	num_output: 256 ## nFeat=256
+    	kernel_size: 1
+    	stride: 1
+    	weight_filler{
+    		type: "gaussian"
+    		std: 0.01
+    	}
+    	bias_filler{
+    		type: "constant"
+    		value: 0
+    	}
+    }
+}
+layer{
+	name: "bn1_uplow1_hourglass_stage1"
+	type: "BatchNorm"
+	bottom: "upSample_uplow1_hourglass_stage1"
+	top: "bn1_uplow1_hourglass_stage1"
+	batch_norm_param{
+		use_global_stats: true
+		moving_averaging_fraction: 0.9
+		eps: 1e-5
+	}
+}
+layer{
+	name: "conv1_uplow1_hourglass_stage1"
+	type: "Convolution"
+	bottom: "bn1_uplow1_hourglass_stage1"
+	top: "conv1_uplow1_hourglass_stage1"
+	param{lr_mult: 1 decay_mult: 1}
+	param{lr_mult: 2 decay_mult: 0}
+	convolution_param{
+		num_output: 128 ## nFeat / 2
+		kernel_size: 1
+		stride: 1
+		weight_filler{
+			type: "gaussian"
+			std: 0.01
+		}
+		bias_filler{
+			type: "constant"
+			value: 0
+		}
+	}
+}
+layer{
+	name: "bn2_uplow1_hourglass_stage1"
+	type: "BatchNorm"
+	bottom: "conv1_uplow1_hourglass_stage1"
+	top: "bn2_uplow1_hourglass_stage1"
+	batch_norm_param{
+		use_global_stats: true
+		moving_averaging_fraction: 0.9
+		eps: 1e-5
+	}
+}
+layer{
+	name: "conv2_uplow1_hourglass_stage1"
+	type: "Convolution"
+	bottom: "bn2_uplow1_hourglass_stage1"
+	top: "conv2_uplow1_hourglass_stage1"
+	param{lr_mult: 1 decay_mult: 1}
+	param{lr_mult: 2 decay_mult: 0}
+	convolution_param{
+		num_output: 128 ## nFeat / 2
+		kernel_size: 3
+		stride: 1
+		pad: 1
+		weight_filler{
+			type: "gaussian"
+			std: 0.01
+		}
+		bias_filler{
+			type: "constant"
+			value: 0
+		}
+	}
+}
+layer{
+	name: "bn3_uplow1_hourglass_stage1"
+	type: "BatchNorm"
+	bottom: "conv2_uplow1_hourglass_stage1"
+	top: "bn3_uplow1_hourglass_stage1"
+	batch_norm_param{
+		use_global_stats: true
+		moving_averaging_fraction: 0.9
+		eps: 1e-5
+	}
+}
+layer{
+	name: "conv3_uplow1_hourglass_stage1"
+	type: "Convolution"
+	bottom: "bn3_uplow1_hourglass_stage1"
+	top: "conv3_uplow1_hourglass_stage1"
+	param{lr_mult: 1 decay_mult: 1}
+	param{lr_mult: 2 decay_mult: 0}
+	convolution_param{
+		num_output: 256 ## nFeat
+		kernel_size: 1
+		stride: 1
+		weight_filler{
+			type: "gaussian"
+			std: 0.01
+		}
+		bias_filler{
+			type: "constant"
+			value: 0
+		}
+	}
+}
+layer{
+	name: "elt_uplow1_hourglass_stage1"
+	type: "Eltwise"
+	bottom: "conv3_uplow1_hourglass_stage1"
+	bottom: "skip_uplow1_hourglass_stage1"
+	top: "elt_uplow1_hourglass_stage1"
+	eltwise_param{
+		operation: SUM
+	}
+}
+layer{
+	name: "Elt1_hourglass_stage1"
+	type: "Eltwise"
+	bottom: "elt_uplow1_hourglass_stage1"
+	bottom: "elt_up1_hourglass_stage1"
+	top: "Elt1_hourglass_stage1"
+	eltwise_param{
+		operation: SUM
+	}
+}
+
+layer{
+	name: "dropout_hourglass_stage1"
+	type: "Dropout"
+	bottom: "Elt1_hourglass_stage1"
+	top: "dropout_hourglass_stage1"
+	dropout_param{
+		dropout_ratio: 0.2
+	}
+}
+layer{
+	name: "conv1_hourglass_stage1"
+	type: "Convolution"
+	bottom: "dropout_hourglass_stage1"
+	top: "conv1_hourglass_stage1"
+	param{lr_mult: 1 decay_mult: 1}
+	param{lr_mult: 2 decay_mult: 0}
+	convolution_param{
+		num_output: 256 ## nFeat
+		kernel_size: 1
+		stride: 1
+		weight_filler{
+			type: "gaussian"
+			std: 0.01
+		}
+		bias_filler{
+			type: "constant"
+			value: 0
+		}
+	}
+}
+layer{
+	name: "bn1_hourglass_stage1"
+	type: "BatchNorm"
+	bottom: "conv1_hourglass_stage1"
+	top: "bn1_hourglass_stage1"
+	batch_norm_param{
+		use_global_stats: true
+		moving_averaging_fraction: 0.9
+		eps: 1e-5
+	}
+}
+layer{
+	name: "out_hourglass_stage1"
+	type: "Convolution"
+	bottom: "bn1_hourglass_stage1"
+	top: "out_hourglass_stage1"
+	param{lr_mult: 0.00025 decay_rate: 0.96}
+	param{lr_mult: 0 decay_rate: 0}
+	convolution_param{
+		num_output: 16 ## outDim, number of output Dimension (16 for MPII)
+		kernel_size: 1
+		stride: 1
+		weight_filler{
+			type: "gaussian"
+			std: 0.01
+		}
+		bias_filler{
+			type: "constant"
+			value: 0
+		}
+	}
+}
+layer{
+	name: "out2_hourglass_stage1"
+	type: "Convolution"
+	bottom: "out_hourglass_stage1"
+	top: "out2_hourglass_stage1"
+	param{lr_mult: 0.00025 decay_mult: 0.96}
+	param{lr_mult: 0 decay_mult: 0}
+	convolution_param{
+		num_output: 256 ## nFeat
+		kernel_size: 1
+		stride: 1
+		weight_filler{
+			type: "gaussian"
+			std: 0.01
+		}
+		bias_filler{
+			type: "constant"
+			value: 0
+		}
+	}
+}
+layer{
+	name: "conv2_hourglass_stage1"
+	type: "Convolution"
+	bottom: "bn1_hourglass_stage1"
+	top: "conv2_hourglass_stage1"
+	param{lr_mult: 0.00025 decay_mult: 0.96}
+	param{lr_mult: 0 decay_mult: 0}
+	convolution_param{
+		num_output: 256 ## nFeat
+		kernel_size: 1
+		stride: 1
+		weight_filler{
+			type: "gaussian"
+			std: 0.01
+		}
+		bias_filler{
+			type: "constant"
+			value: 0
+		}
+	}
+}
+layer{
+	name: "sum_hourglass_stage1"
+	type: "Eltwise"
+	bottom: "out2_hourglass_stage1"
+	bottom: "conv2_hourglass_stage1"
+	bottom: "sum_hourglass_stage0"
+	top: "sum_hourglass_stage1"
+	eltwise_param{
+		operation: SUM
+	}
+}
+
+## ================================== hourglass_stage2 ====================================
+
+# number of downsampling step: nLow = 4
+# number of output features: nFeat = 256
+
+## ==== hourglass_stage2 ====
+## up1_hourglass_stage2
+layer{
+	name: 'skip_up1_hourglass_stage2'
+	type: "Convolution"
+	bottom: "sum_hourglass_stage1"
+	top: "skip_up1_hourglass_stage2"
+    param { lr_mult: 1 decay_mult: 1 }
+    param { lr_mult: 2 decay_mult: 0 }
+    convolution_param{
+    	num_output: 256 ## nFeat=256
+    	kernel_size: 1
+    	stride: 1
+    	weight_filler{
+    		type: "gaussian"
+    		std: 0.01
+    	}
+    	bias_filler{
+    		type: "constant"
+    		value: 0
+    	}
+    }
+}
+layer{
+	name: "bn1_up1_hourglass_stage2"
+	type: "BatchNorm"
+	bottom: "sum_hourglass_stage1"
+	top: "bn1_up1_hourglass_stage2"
+	batch_norm_param{
+		use_global_stats: true
+		moving_averaging_fraction: 0.9
+		eps: 1e-5
+	}
+}
+layer{
+	name: "conv1_up1_hourglass_stage2"
+	type: "Convolution"
+	bottom: "bn1_up1_hourglass_stage2"
+	top: "conv1_up1_hourglass_stage2"
+	param{lr_mult: 1 decay_mult: 1}
+	param{lr_mult: 2 decay_mult: 0}
+	convolution_param{
+		num_output: 128 ## nFeat / 2
+		kernel_size: 1
+		stride: 1
+		weight_filler{
+			type: "gaussian"
+			std: 0.01
+		}
+		bias_filler{
+			type: "constant"
+			value: 0
+		}
+	}
+}
+layer{
+	name: "bn2_up1_hourglass_stage2"
+	type: "BatchNorm"
+	bottom: "conv1_up1_hourglass_stage2"
+	top: "bn2_up1_hourglass_stage2"
+	batch_norm_param{
+		use_global_stats: true
+		moving_averaging_fraction: 0.9
+		eps: 1e-5
+	}
+}
+layer{
+	name: "conv2_up1_hourglass_stage2"
+	type: "Convolution"
+	bottom: "bn2_up1_hourglass_stage2"
+	top: "conv2_up1_hourglass_stage2"
+	param{lr_mult: 1 decay_mult: 1}
+	param{lr_mult: 2 decay_mult: 0}
+	convolution_param{
+		num_output: 128 ## nFeat / 2
+		kernel_size: 3
+		stride: 1
+		pad: 1
+		weight_filler{
+			type: "gaussian"
+			std: 0.01
+		}
+		bias_filler{
+			type: "constant"
+			value: 0
+		}
+	}
+}
+layer{
+	name: "bn3_up1_hourglass_stage2"
+	type: "BatchNorm"
+	bottom: "conv2_up1_hourglass_stage2"
+	top: "bn3_up1_hourglass_stage2"
+	batch_norm_param{
+		use_global_stats: true
+		moving_averaging_fraction: 0.9
+		eps: 1e-5
+	}
+}
+layer{
+	name: "conv3_up1_hourglass_stage2"
+	type: "Convolution"
+	bottom: "bn3_up1_hourglass_stage2"
+	top: "conv3_up1_hourglass_stage2"
+	param{lr_mult: 1 decay_mult: 1}
+	param{lr_mult: 2 decay_mult: 0}
+	convolution_param{
+		num_output: 256 ## nFeat
+		kernel_size: 1
+		stride: 1
+		weight_filler{
+			type: "gaussian"
+			std: 0.01
+		}
+		bias_filler{
+			type: "constant"
+			value: 0
+		}
+	}
+}
+layer{
+	name: "elt_up1_hourglass_stage2"
+	type: "Eltwise"
+	bottom: "conv3_up1_hourglass_stage2"
+	bottom: "skip_up1_hourglass_stage2"
+	top: "elt_up1_hourglass_stage2"
+	eltwise_param{
+		operation: SUM
+	}
+}
+
+##=== low1_hourglass_stage2
+layer{
+	name: "pool_low1_hourglass_stage2"
+	type: "Pooling"
+	bottom: "sum_hourglass_stage1"
+	top: "pool_low1_hourglass_stage2"
+	pooling_param{
+		pool: MAX
+		kernel_size: 2
+		stride: 2
+	}
+}
+layer{
+	name: 'skip_low1_hourglass_stage2'
+	type: "Convolution"
+	bottom: "pool_low1_hourglass_stage2"
+	top: "skip_low1_hourglass_stage2"
+    param { lr_mult: 1 decay_mult: 1 }
+    param { lr_mult: 2 decay_mult: 0 }
+    convolution_param{
+    	num_output: 256 ## nFeat=256
+    	kernel_size: 1
+    	stride: 1
+    	weight_filler{
+    		type: "gaussian"
+    		std: 0.01
+    	}
+    	bias_filler{
+    		type: "constant"
+    		value: 0
+    	}
+    }
+}
+layer{
+	name: "bn1_low1_hourglass_stage2"
+	type: "BatchNorm"
+	bottom: "pool_low1_hourglass_stage2"
+	top: "bn1_low1_hourglass_stage2"
+	batch_norm_param{
+		use_global_stats: true
+		moving_averaging_fraction: 0.9
+		eps: 1e-5
+	}
+}
+layer{
+	name: "conv1_low1_hourglass_stage2"
+	type: "Convolution"
+	bottom: "bn1_low1_hourglass_stage2"
+	top: "conv1_low1_hourglass_stage2"
+	param{lr_mult: 1 decay_mult: 1}
+	param{lr_mult: 2 decay_mult: 0}
+	convolution_param{
+		num_output: 128 ## nFeat / 2
+		kernel_size: 1
+		stride: 1
+		weight_filler{
+			type: "gaussian"
+			std: 0.01
+		}
+		bias_filler{
+			type: "constant"
+			value: 0
+		}
+	}
+}
+layer{
+	name: "bn2_low1_hourglass_stage2"
+	type: "BatchNorm"
+	bottom: "conv1_low1_hourglass_stage2"
+	top: "bn2_low1_hourglass_stage2"
+	batch_norm_param{
+		use_global_stats: true
+		moving_averaging_fraction: 0.9
+		eps: 1e-5
+	}
+}
+layer{
+	name: "conv2_low1_hourglass_stage2"
+	type: "Convolution"
+	bottom: "bn2_low1_hourglass_stage2"
+	top: "conv2_low1_hourglass_stage2"
+	param{lr_mult: 1 decay_mult: 1}
+	param{lr_mult: 2 decay_mult: 0}
+	convolution_param{
+		num_output: 128 ## nFeat / 2
+		kernel_size: 3
+		stride: 1
+		pad: 1
+		weight_filler{
+			type: "gaussian"
+			std: 0.01
+		}
+		bias_filler{
+			type: "constant"
+			value: 0
+		}
+	}
+}
+layer{
+	name: "bn3_low1_hourglass_stage2"
+	type: "BatchNorm"
+	bottom: "conv2_low1_hourglass_stage2"
+	top: "bn3_low1_hourglass_stage2"
+	batch_norm_param{
+		use_global_stats: true
+		moving_averaging_fraction: 0.9
+		eps: 1e-5
+	}
+}
+layer{
+	name: "conv3_low1_hourglass_stage2"
+	type: "Convolution"
+	bottom: "bn3_low1_hourglass_stage2"
+	top: "conv3_low1_hourglass_stage2"
+	param{lr_mult: 1 decay_mult: 1}
+	param{lr_mult: 2 decay_mult: 0}
+	convolution_param{
+		num_output: 256 ## nFeat
+		kernel_size: 1
+		stride: 1
+		weight_filler{
+			type: "gaussian"
+			std: 0.01
+		}
+		bias_filler{
+			type: "constant"
+			value: 0
+		}
+	}
+}
+layer{
+	name: "elt_low1_hourglass_stage2"
+	type: "Eltwise"
+	bottom: "conv3_low1_hourglass_stage2"
+	bottom: "skip_low1_hourglass_stage2"
+	top: "elt_low1_hourglass_stage2"
+	eltwise_param{
+		operation: SUM
+	}
+}
+
+##==== up2_hourglass_stage2
+layer{
+	name: 'skip_up2_hourglass_stage2'
+	type: "Convolution"
+	bottom: "elt_low1_hourglass_stage2"
+	top: "skip_up2_hourglass_stage2"
+    param { lr_mult: 1 decay_mult: 1 }
+    param { lr_mult: 2 decay_mult: 0 }
+    convolution_param{
+    	num_output: 256 ## nFeat=256
+    	kernel_size: 1
+    	stride: 1
+    	weight_filler{
+    		type: "gaussian"
+    		std: 0.01
+    	}
+    	bias_filler{
+    		type: "constant"
+    		value: 0
+    	}
+    }
+}
+layer{
+	name: "bn1_up2_hourglass_stage2"
+	type: "BatchNorm"
+	bottom: "elt_low1_hourglass_stage2"
+	top: "bn1_up2_hourglass_stage2"
+	batch_norm_param{
+		use_global_stats: true
+		moving_averaging_fraction: 0.9
+		eps: 1e-5
+	}
+}
+layer{
+	name: "conv1_up2_hourglass_stage2"
+	type: "Convolution"
+	bottom: "bn1_up2_hourglass_stage2"
+	top: "conv1_up2_hourglass_stage2"
+	param{lr_mult: 1 decay_mult: 1}
+	param{lr_mult: 2 decay_mult: 0}
+	convolution_param{
+		num_output: 128 ## nFeat / 2
+		kernel_size: 1
+		stride: 1
+		weight_filler{
+			type: "gaussian"
+			std: 0.01
+		}
+		bias_filler{
+			type: "constant"
+			value: 0
+		}
+	}
+}
+layer{
+	name: "bn2_up2_hourglass_stage2"
+	type: "BatchNorm"
+	bottom: "conv1_up2_hourglass_stage2"
+	top: "bn2_up2_hourglass_stage2"
+	batch_norm_param{
+		use_global_stats: true
+		moving_averaging_fraction: 0.9
+		eps: 1e-5
+	}
+}
+layer{
+	name: "conv2_up2_hourglass_stage2"
+	type: "Convolution"
+	bottom: "bn2_up2_hourglass_stage2"
+	top: "conv2_up2_hourglass_stage2"
+	param{lr_mult: 1 decay_mult: 1}
+	param{lr_mult: 2 decay_mult: 0}
+	convolution_param{
+		num_output: 128 ## nFeat / 2
+		kernel_size: 3
+		stride: 1
+		pad: 1
+		weight_filler{
+			type: "gaussian"
+			std: 0.01
+		}
+		bias_filler{
+			type: "constant"
+			value: 0
+		}
+	}
+}
+layer{
+	name: "bn3_up2_hourglass_stage2"
+	type: "BatchNorm"
+	bottom: "conv2_up2_hourglass_stage2"
+	top: "bn3_up2_hourglass_stage2"
+	batch_norm_param{
+		use_global_stats: true
+		moving_averaging_fraction: 0.9
+		eps: 1e-5
+	}
+}
+layer{
+	name: "conv3_up2_hourglass_stage2"
+	type: "Convolution"
+	bottom: "bn3_up2_hourglass_stage2"
+	top: "conv3_up2_hourglass_stage2"
+	param{lr_mult: 1 decay_mult: 1}
+	param{lr_mult: 2 decay_mult: 0}
+	convolution_param{
+		num_output: 256 ## nFeat
+		kernel_size: 1
+		stride: 1
+		weight_filler{
+			type: "gaussian"
+			std: 0.01
+		}
+		bias_filler{
+			type: "constant"
+			value: 0
+		}
+	}
+}
+layer{
+	name: "elt_up2_hourglass_stage2"
+	type: "Eltwise"
+	bottom: "conv3_up2_hourglass_stage2"
+	bottom: "skip_up2_hourglass_stage2"
+	top: "elt_up2_hourglass_stage2"
+	eltwise_param{
+		operation: SUM
+	}
+}
+##==== low2_hourglass_stage2
+layer{
+	name: "pool_low2_hourglass_stage2"
+	type: "Pooling"
+	bottom: "elt_low1_hourglass_stage2"
+	top: "pool_low2_hourglass_stage2"
+	pooling_param{
+		pool: MAX
+		kernel_size: 2
+		stride: 2
+	}
+}
+layer{
+	name: 'skip_low2_hourglass_stage2'
+	type: "Convolution"
+	bottom: "pool_low2_hourglass_stage2"
+	top: "skip_low2_hourglass_stage2"
+    param { lr_mult: 1 decay_mult: 1 }
+    param { lr_mult: 2 decay_mult: 0 }
+    convolution_param{
+    	num_output: 256 ## nFeat=256
+    	kernel_size: 1
+    	stride: 1
+    	weight_filler{
+    		type: "gaussian"
+    		std: 0.01
+    	}
+    	bias_filler{
+    		type: "constant"
+    		value: 0
+    	}
+    }
+}
+layer{
+	name: "bn1_low2_hourglass_stage2"
+	type: "BatchNorm"
+	bottom: "pool_low2_hourglass_stage2"
+	top: "bn1_low2_hourglass_stage2"
+	batch_norm_param{
+		use_global_stats: true
+		moving_averaging_fraction: 0.9
+		eps: 1e-5
+	}
+}
+layer{
+	name: "conv1_low2_hourglass_stage2"
+	type: "Convolution"
+	bottom: "bn1_low2_hourglass_stage2"
+	top: "conv1_low2_hourglass_stage2"
+	param{lr_mult: 1 decay_mult: 1}
+	param{lr_mult: 2 decay_mult: 0}
+	convolution_param{
+		num_output: 128 ## nFeat / 2
+		kernel_size: 1
+		stride: 1
+		weight_filler{
+			type: "gaussian"
+			std: 0.01
+		}
+		bias_filler{
+			type: "constant"
+			value: 0
+		}
+	}
+}
+layer{
+	name: "bn2_low2_hourglass_stage2"
+	type: "BatchNorm"
+	bottom: "conv1_low2_hourglass_stage2"
+	top: "bn2_low2_hourglass_stage2"
+	batch_norm_param{
+		use_global_stats: true
+		moving_averaging_fraction: 0.9
+		eps: 1e-5
+	}
+}
+layer{
+	name: "conv2_low2_hourglass_stage2"
+	type: "Convolution"
+	bottom: "bn2_low2_hourglass_stage2"
+	top: "conv2_low2_hourglass_stage2"
+	param{lr_mult: 1 decay_mult: 1}
+	param{lr_mult: 2 decay_mult: 0}
+	convolution_param{
+		num_output: 128 ## nFeat / 2
+		kernel_size: 3
+		stride: 1
+		pad: 1
+		weight_filler{
+			type: "gaussian"
+			std: 0.01
+		}
+		bias_filler{
+			type: "constant"
+			value: 0
+		}
+	}
+}
+layer{
+	name: "bn3_low2_hourglass_stage2"
+	type: "BatchNorm"
+	bottom: "conv2_low2_hourglass_stage2"
+	top: "bn3_low2_hourglass_stage2"
+	batch_norm_param{
+		use_global_stats: true
+		moving_averaging_fraction: 0.9
+		eps: 1e-5
+	}
+}
+layer{
+	name: "conv3_low2_hourglass_stage2"
+	type: "Convolution"
+	bottom: "bn3_low2_hourglass_stage2"
+	top: "conv3_low2_hourglass_stage2"
+	param{lr_mult: 1 decay_mult: 1}
+	param{lr_mult: 2 decay_mult: 0}
+	convolution_param{
+		num_output: 256 ## nFeat
+		kernel_size: 1
+		stride: 1
+		weight_filler{
+			type: "gaussian"
+			std: 0.01
+		}
+		bias_filler{
+			type: "constant"
+			value: 0
+		}
+	}
+}
+layer{
+	name: "elt_low2_hourglass_stage2"
+	type: "Eltwise"
+	bottom: "conv3_low2_hourglass_stage2"
+	bottom: "skip_low2_hourglass_stage2"
+	top: "elt_low2_hourglass_stage2"
+	eltwise_param{
+		operation: SUM
+	}
+}
+##==== up3_hourglass_stage2
+layer{
+	name: 'skip_up3_hourglass_stage2'
+	type: "Convolution"
+	bottom: "elt_low2_hourglass_stage2"
+	top: "skip_up3_hourglass_stage2"
+    param { lr_mult: 1 decay_mult: 1 }
+    param { lr_mult: 2 decay_mult: 0 }
+    convolution_param{
+    	num_output: 256 ## nFeat=256
+    	kernel_size: 1
+    	stride: 1
+    	weight_filler{
+    		type: "gaussian"
+    		std: 0.01
+    	}
+    	bias_filler{
+    		type: "constant"
+    		value: 0
+    	}
+    }
+}
+layer{
+	name: "bn1_up3_hourglass_stage2"
+	type: "BatchNorm"
+	bottom: "elt_low2_hourglass_stage2"
+	top: "bn1_up3_hourglass_stage2"
+	batch_norm_param{
+		use_global_stats: true
+		moving_averaging_fraction: 0.9
+		eps: 1e-5
+	}
+}
+layer{
+	name: "conv1_up3_hourglass_stage2"
+	type: "Convolution"
+	bottom: "bn1_up3_hourglass_stage2"
+	top: "conv1_up3_hourglass_stage2"
+	param{lr_mult: 1 decay_mult: 1}
+	param{lr_mult: 2 decay_mult: 0}
+	convolution_param{
+		num_output: 128 ## nFeat / 2
+		kernel_size: 1
+		stride: 1
+		weight_filler{
+			type: "gaussian"
+			std: 0.01
+		}
+		bias_filler{
+			type: "constant"
+			value: 0
+		}
+	}
+}
+layer{
+	name: "bn2_up3_hourglass_stage2"
+	type: "BatchNorm"
+	bottom: "conv1_up3_hourglass_stage2"
+	top: "bn2_up3_hourglass_stage2"
+	batch_norm_param{
+		use_global_stats: true
+		moving_averaging_fraction: 0.9
+		eps: 1e-5
+	}
+}
+layer{
+	name: "conv2_up3_hourglass_stage2"
+	type: "Convolution"
+	bottom: "bn2_up3_hourglass_stage2"
+	top: "conv2_up3_hourglass_stage2"
+	param{lr_mult: 1 decay_mult: 1}
+	param{lr_mult: 2 decay_mult: 0}
+	convolution_param{
+		num_output: 128 ## nFeat / 2
+		kernel_size: 3
+		stride: 1
+		pad: 1
+		weight_filler{
+			type: "gaussian"
+			std: 0.01
+		}
+		bias_filler{
+			type: "constant"
+			value: 0
+		}
+	}
+}
+layer{
+	name: "bn3_up3_hourglass_stage2"
+	type: "BatchNorm"
+	bottom: "conv2_up3_hourglass_stage2"
+	top: "bn3_up3_hourglass_stage2"
+	batch_norm_param{
+		use_global_stats: true
+		moving_averaging_fraction: 0.9
+		eps: 1e-5
+	}
+}
+layer{
+	name: "conv3_up3_hourglass_stage2"
+	type: "Convolution"
+	bottom: "bn3_up3_hourglass_stage2"
+	top: "conv3_up3_hourglass_stage2"
+	param{lr_mult: 1 decay_mult: 1}
+	param{lr_mult: 2 decay_mult: 0}
+	convolution_param{
+		num_output: 256 ## nFeat
+		kernel_size: 1
+		stride: 1
+		weight_filler{
+			type: "gaussian"
+			std: 0.01
+		}
+		bias_filler{
+			type: "constant"
+			value: 0
+		}
+	}
+}
+layer{
+	name: "elt_up3_hourglass_stage2"
+	type: "Eltwise"
+	bottom: "conv3_up3_hourglass_stage2"
+	bottom: "skip_up3_hourglass_stage2"
+	top: "elt_up3_hourglass_stage2"
+	eltwise_param{
+		operation: SUM
+	}
+}
+##==== low3_hourglass_stage2
+layer{
+	name: "pool_low3_hourglass_stage2"
+	type: "Pooling"
+	bottom: "elt_low2_hourglass_stage2"
+	top: "pool_low3_hourglass_stage2"
+	pooling_param{
+		pool: MAX
+		kernel_size: 2
+		stride: 2
+	}
+}
+layer{
+	name: 'skip_low3_hourglass_stage2'
+	type: "Convolution"
+	bottom: "pool_low3_hourglass_stage2"
+	top: "skip_low3_hourglass_stage2"
+    param { lr_mult: 1 decay_mult: 1 }
+    param { lr_mult: 2 decay_mult: 0 }
+    convolution_param{
+    	num_output: 256 ## nFeat=256
+    	kernel_size: 1
+    	stride: 1
+    	weight_filler{
+    		type: "gaussian"
+    		std: 0.01
+    	}
+    	bias_filler{
+    		type: "constant"
+    		value: 0
+    	}
+    }
+}
+layer{
+	name: "bn1_low3_hourglass_stage2"
+	type: "BatchNorm"
+	bottom: "pool_low3_hourglass_stage2"
+	top: "bn1_low3_hourglass_stage2"
+	batch_norm_param{
+		use_global_stats: true
+		moving_averaging_fraction: 0.9
+		eps: 1e-5
+	}
+}
+layer{
+	name: "conv1_low3_hourglass_stage2"
+	type: "Convolution"
+	bottom: "bn1_low3_hourglass_stage2"
+	top: "conv1_low3_hourglass_stage2"
+	param{lr_mult: 1 decay_mult: 1}
+	param{lr_mult: 2 decay_mult: 0}
+	convolution_param{
+		num_output: 128 ## nFeat / 2
+		kernel_size: 1
+		stride: 1
+		weight_filler{
+			type: "gaussian"
+			std: 0.01
+		}
+		bias_filler{
+			type: "constant"
+			value: 0
+		}
+	}
+}
+layer{
+	name: "bn2_low3_hourglass_stage2"
+	type: "BatchNorm"
+	bottom: "conv1_low3_hourglass_stage2"
+	top: "bn2_low3_hourglass_stage2"
+	batch_norm_param{
+		use_global_stats: true
+		moving_averaging_fraction: 0.9
+		eps: 1e-5
+	}
+}
+layer{
+	name: "conv2_low3_hourglass_stage2"
+	type: "Convolution"
+	bottom: "bn2_low3_hourglass_stage2"
+	top: "conv2_low3_hourglass_stage2"
+	param{lr_mult: 1 decay_mult: 1}
+	param{lr_mult: 2 decay_mult: 0}
+	convolution_param{
+		num_output: 128 ## nFeat / 2
+		kernel_size: 3
+		stride: 1
+		pad: 1
+		weight_filler{
+			type: "gaussian"
+			std: 0.01
+		}
+		bias_filler{
+			type: "constant"
+			value: 0
+		}
+	}
+}
+layer{
+	name: "bn3_low3_hourglass_stage2"
+	type: "BatchNorm"
+	bottom: "conv2_low3_hourglass_stage2"
+	top: "bn3_low3_hourglass_stage2"
+	batch_norm_param{
+		use_global_stats: true
+		moving_averaging_fraction: 0.9
+		eps: 1e-5
+	}
+}
+layer{
+	name: "conv3_low3_hourglass_stage2"
+	type: "Convolution"
+	bottom: "bn3_low3_hourglass_stage2"
+	top: "conv3_low3_hourglass_stage2"
+	param{lr_mult: 1 decay_mult: 1}
+	param{lr_mult: 2 decay_mult: 0}
+	convolution_param{
+		num_output: 256 ## nFeat
+		kernel_size: 1
+		stride: 1
+		weight_filler{
+			type: "gaussian"
+			std: 0.01
+		}
+		bias_filler{
+			type: "constant"
+			value: 0
+		}
+	}
+}
+layer{
+	name: "elt_low3_hourglass_stage2"
+	type: "Eltwise"
+	bottom: "conv3_low3_hourglass_stage2"
+	bottom: "skip_low3_hourglass_stage2"
+	top: "elt_low3_hourglass_stage2"
+	eltwise_param{
+		operation: SUM
+	}
+}
+##==== up4_hourglass_stage2
+layer{
+	name: 'skip_up4_hourglass_stage2'
+	type: "Convolution"
+	bottom: "elt_low3_hourglass_stage2"
+	top: "skip_up4_hourglass_stage2"
+    param { lr_mult: 1 decay_mult: 1 }
+    param { lr_mult: 2 decay_mult: 0 }
+    convolution_param{
+    	num_output: 256 ## nFeat=256
+    	kernel_size: 1
+    	stride: 1
+    	weight_filler{
+    		type: "gaussian"
+    		std: 0.01
+    	}
+    	bias_filler{
+    		type: "constant"
+    		value: 0
+    	}
+    }
+}
+layer{
+	name: "bn1_up4_hourglass_stage2"
+	type: "BatchNorm"
+	bottom: "elt_low3_hourglass_stage2"
+	top: "bn1_up4_hourglass_stage2"
+	batch_norm_param{
+		use_global_stats: true
+		moving_averaging_fraction: 0.9
+		eps: 1e-5
+	}
+}
+layer{
+	name: "conv1_up4_hourglass_stage2"
+	type: "Convolution"
+	bottom: "bn1_up4_hourglass_stage2"
+	top: "conv1_up4_hourglass_stage2"
+	param{lr_mult: 1 decay_mult: 1}
+	param{lr_mult: 2 decay_mult: 0}
+	convolution_param{
+		num_output: 128 ## nFeat / 2
+		kernel_size: 1
+		stride: 1
+		weight_filler{
+			type: "gaussian"
+			std: 0.01
+		}
+		bias_filler{
+			type: "constant"
+			value: 0
+		}
+	}
+}
+layer{
+	name: "bn2_up4_hourglass_stage2"
+	type: "BatchNorm"
+	bottom: "conv1_up4_hourglass_stage2"
+	top: "bn2_up4_hourglass_stage2"
+	batch_norm_param{
+		use_global_stats: true
+		moving_averaging_fraction: 0.9
+		eps: 1e-5
+	}
+}
+layer{
+	name: "conv2_up4_hourglass_stage2"
+	type: "Convolution"
+	bottom: "bn2_up4_hourglass_stage2"
+	top: "conv2_up4_hourglass_stage2"
+	param{lr_mult: 1 decay_mult: 1}
+	param{lr_mult: 2 decay_mult: 0}
+	convolution_param{
+		num_output: 128 ## nFeat / 2
+		kernel_size: 3
+		stride: 1
+		pad: 1
+		weight_filler{
+			type: "gaussian"
+			std: 0.01
+		}
+		bias_filler{
+			type: "constant"
+			value: 0
+		}
+	}
+}
+layer{
+	name: "bn3_up4_hourglass_stage2"
+	type: "BatchNorm"
+	bottom: "conv2_up4_hourglass_stage2"
+	top: "bn3_up4_hourglass_stage2"
+	batch_norm_param{
+		use_global_stats: true
+		moving_averaging_fraction: 0.9
+		eps: 1e-5
+	}
+}
+layer{
+	name: "conv3_up4_hourglass_stage2"
+	type: "Convolution"
+	bottom: "bn3_up4_hourglass_stage2"
+	top: "conv3_up4_hourglass_stage2"
+	param{lr_mult: 1 decay_mult: 1}
+	param{lr_mult: 2 decay_mult: 0}
+	convolution_param{
+		num_output: 256 ## nFeat
+		kernel_size: 1
+		stride: 1
+		weight_filler{
+			type: "gaussian"
+			std: 0.01
+		}
+		bias_filler{
+			type: "constant"
+			value: 0
+		}
+	}
+}
+layer{
+	name: "elt_up4_hourglass_stage2"
+	type: "Eltwise"
+	bottom: "conv3_up4_hourglass_stage2"
+	bottom: "skip_up4_hourglass_stage2"
+	top: "elt_up4_hourglass_stage2"
+	eltwise_param{
+		operation: SUM
+	}
+}
+##==== low4_hourglass_stage2
+layer{
+	name: "pool_low4_hourglass_stage2"
+	type: "Pooling"
+	bottom: "elt_low3_hourglass_stage2"
+	top: "pool_low4_hourglass_stage2"
+	pooling_param{
+		pool: MAX
+		kernel_size: 2
+		stride: 2
+	}
+}
+layer{
+	name: 'skip_low4_hourglass_stage2'
+	type: "Convolution"
+	bottom: "pool_low4_hourglass_stage2"
+	top: "skip_low4_hourglass_stage2"
+    param { lr_mult: 1 decay_mult: 1 }
+    param { lr_mult: 2 decay_mult: 0 }
+    convolution_param{
+    	num_output: 256 ## nFeat=256
+    	kernel_size: 1
+    	stride: 1
+    	weight_filler{
+    		type: "gaussian"
+    		std: 0.01
+    	}
+    	bias_filler{
+    		type: "constant"
+    		value: 0
+    	}
+    }
+}
+layer{
+	name: "bn1_low4_hourglass_stage2"
+	type: "BatchNorm"
+	bottom: "pool_low4_hourglass_stage2"
+	top: "bn1_low4_hourglass_stage2"
+	batch_norm_param{
+		use_global_stats: true
+		moving_averaging_fraction: 0.9
+		eps: 1e-5
+	}
+}
+layer{
+	name: "conv1_low4_hourglass_stage2"
+	type: "Convolution"
+	bottom: "bn1_low4_hourglass_stage2"
+	top: "conv1_low4_hourglass_stage2"
+	param{lr_mult: 1 decay_mult: 1}
+	param{lr_mult: 2 decay_mult: 0}
+	convolution_param{
+		num_output: 128 ## nFeat / 2
+		kernel_size: 1
+		stride: 1
+		weight_filler{
+			type: "gaussian"
+			std: 0.01
+		}
+		bias_filler{
+			type: "constant"
+			value: 0
+		}
+	}
+}
+layer{
+	name: "bn2_low4_hourglass_stage2"
+	type: "BatchNorm"
+	bottom: "conv1_low4_hourglass_stage2"
+	top: "bn2_low4_hourglass_stage2"
+	batch_norm_param{
+		use_global_stats: true
+		moving_averaging_fraction: 0.9
+		eps: 1e-5
+	}
+}
+layer{
+	name: "conv2_low4_hourglass_stage2"
+	type: "Convolution"
+	bottom: "bn2_low4_hourglass_stage2"
+	top: "conv2_low4_hourglass_stage2"
+	param{lr_mult: 1 decay_mult: 1}
+	param{lr_mult: 2 decay_mult: 0}
+	convolution_param{
+		num_output: 128 ## nFeat / 2
+		kernel_size: 3
+		stride: 1
+		pad: 1
+		weight_filler{
+			type: "gaussian"
+			std: 0.01
+		}
+		bias_filler{
+			type: "constant"
+			value: 0
+		}
+	}
+}
+layer{
+	name: "bn3_low4_hourglass_stage2"
+	type: "BatchNorm"
+	bottom: "conv2_low4_hourglass_stage2"
+	top: "bn3_low4_hourglass_stage2"
+	batch_norm_param{
+		use_global_stats: true
+		moving_averaging_fraction: 0.9
+		eps: 1e-5
+	}
+}
+layer{
+	name: "conv3_low4_hourglass_stage2"
+	type: "Convolution"
+	bottom: "bn3_low4_hourglass_stage2"
+	top: "conv3_low4_hourglass_stage2"
+	param{lr_mult: 1 decay_mult: 1}
+	param{lr_mult: 2 decay_mult: 0}
+	convolution_param{
+		num_output: 256 ## nFeat
+		kernel_size: 1
+		stride: 1
+		weight_filler{
+			type: "gaussian"
+			std: 0.01
+		}
+		bias_filler{
+			type: "constant"
+			value: 0
+		}
+	}
+}
+layer{
+	name: "elt_low4_hourglass_stage2"
+	type: "Eltwise"
+	bottom: "conv3_low4_hourglass_stage2"
+	bottom: "skip_low4_hourglass_stage2"
+	top: "elt_low4_hourglass_stage2"
+	eltwise_param{
+		operation: SUM
+	}
+}
+##==== low4_2_hourglass_stage2
+layer{
+	name: 'skip_low4_2_hourglass_stage2'
+	type: "Convolution"
+	bottom: "elt_low4_hourglass_stage2"
+	top: "skip_low4_2_hourglass_stage2"
+    param { lr_mult: 1 decay_mult: 1 }
+    param { lr_mult: 2 decay_mult: 0 }
+    convolution_param{
+    	num_output: 256 ## nFeat=256
+    	kernel_size: 1
+    	stride: 1
+    	weight_filler{
+    		type: "gaussian"
+    		std: 0.01
+    	}
+    	bias_filler{
+    		type: "constant"
+    		value: 0
+    	}
+    }
+}
+layer{
+	name: "bn1_low4_2_hourglass_stage2"
+	type: "BatchNorm"
+	bottom: "elt_low4_hourglass_stage2"
+	top: "bn1_low4_2_hourglass_stage2"
+	batch_norm_param{
+		use_global_stats: true
+		moving_averaging_fraction: 0.9
+		eps: 1e-5
+	}
+}
+layer{
+	name: "conv1_low4_2_hourglass_stage2"
+	type: "Convolution"
+	bottom: "bn1_low4_2_hourglass_stage2"
+	top: "conv1_low4_2_hourglass_stage2"
+	param{lr_mult: 1 decay_mult: 1}
+	param{lr_mult: 2 decay_mult: 0}
+	convolution_param{
+		num_output: 128 ## nFeat / 2
+		kernel_size: 1
+		stride: 1
+		weight_filler{
+			type: "gaussian"
+			std: 0.01
+		}
+		bias_filler{
+			type: "constant"
+			value: 0
+		}
+	}
+}
+layer{
+	name: "bn2_low4_2_hourglass_stage2"
+	type: "BatchNorm"
+	bottom: "conv1_low4_2_hourglass_stage2"
+	top: "bn2_low4_2_hourglass_stage2"
+	batch_norm_param{
+		use_global_stats: true
+		moving_averaging_fraction: 0.9
+		eps: 1e-5
+	}
+}
+layer{
+	name: "conv2_low4_2_hourglass_stage2"
+	type: "Convolution"
+	bottom: "bn2_low4_2_hourglass_stage2"
+	top: "conv2_low4_2_hourglass_stage2"
+	param{lr_mult: 1 decay_mult: 1}
+	param{lr_mult: 2 decay_mult: 0}
+	convolution_param{
+		num_output: 128 ## nFeat / 2
+		kernel_size: 3
+		stride: 1
+		pad: 1
+		weight_filler{
+			type: "gaussian"
+			std: 0.01
+		}
+		bias_filler{
+			type: "constant"
+			value: 0
+		}
+	}
+}
+layer{
+	name: "bn3_low4_2_hourglass_stage2"
+	type: "BatchNorm"
+	bottom: "conv2_low4_2_hourglass_stage2"
+	top: "bn3_low4_2_hourglass_stage2"
+	batch_norm_param{
+		use_global_stats: true
+		moving_averaging_fraction: 0.9
+		eps: 1e-5
+	}
+}
+layer{
+	name: "conv3_low4_2_hourglass_stage2"
+	type: "Convolution"
+	bottom: "bn3_low4_2_hourglass_stage2"
+	top: "conv3_low4_2_hourglass_stage2"
+	param{lr_mult: 1 decay_mult: 1}
+	param{lr_mult: 2 decay_mult: 0}
+	convolution_param{
+		num_output: 256 ## nFeat
+		kernel_size: 1
+		stride: 1
+		weight_filler{
+			type: "gaussian"
+			std: 0.01
+		}
+		bias_filler{
+			type: "constant"
+			value: 0
+		}
+	}
+}
+layer{
+	name: "elt_low4_2_hourglass_stage2"
+	type: "Eltwise"
+	bottom: "conv3_low4_2_hourglass_stage2"
+	bottom: "skip_low4_2_hourglass_stage2"
+	top: "elt_low4_2_hourglass_stage2"
+	eltwise_param{
+		operation: SUM
+	}
+}
+##==== uplow4_hourglass_stage2
+layer{
+	name: "upSample_uplow4_hourglass_stage2"
+	type: "Deconvolution"
+	bottom: "elt_low4_2_hourglass_stage2"
+	top: "upSample_uplow4_hourglass_stage2"
+	convolution_param{
+		kernel_h: 2
+		kernel_w: 2
+		stride_h: 2
+		stride_w: 2
+		pad_h: 0
+		pad_w: 0
+		num_output: 256
+		group: 256
+		bias_term: false
+		weight_filler{
+			type: "bilinear"
+		}
+	}
+	param{lr_mult: 0 decay_mult: 0}
+}
+layer{
+	name: 'skip_uplow4_hourglass_stage2'
+	type: "Convolution"
+	bottom: "upSample_uplow4_hourglass_stage2"
+	top: "skip_uplow4_hourglass_stage2"
+    param { lr_mult: 1 decay_mult: 1 }
+    param { lr_mult: 2 decay_mult: 0 }
+    convolution_param{
+    	num_output: 256 ## nFeat=256
+    	kernel_size: 1
+    	stride: 1
+    	weight_filler{
+    		type: "gaussian"
+    		std: 0.01
+    	}
+    	bias_filler{
+    		type: "constant"
+    		value: 0
+    	}
+    }
+}
+layer{
+	name: "bn1_uplow4_hourglass_stage2"
+	type: "BatchNorm"
+	bottom: "upSample_uplow4_hourglass_stage2"
+	top: "bn1_uplow4_hourglass_stage2"
+	batch_norm_param{
+		use_global_stats: true
+		moving_averaging_fraction: 0.9
+		eps: 1e-5
+	}
+}
+layer{
+	name: "conv1_uplow4_hourglass_stage2"
+	type: "Convolution"
+	bottom: "bn1_uplow4_hourglass_stage2"
+	top: "conv1_uplow4_hourglass_stage2"
+	param{lr_mult: 1 decay_mult: 1}
+	param{lr_mult: 2 decay_mult: 0}
+	convolution_param{
+		num_output: 128 ## nFeat / 2
+		kernel_size: 1
+		stride: 1
+		weight_filler{
+			type: "gaussian"
+			std: 0.01
+		}
+		bias_filler{
+			type: "constant"
+			value: 0
+		}
+	}
+}
+layer{
+	name: "bn2_uplow4_hourglass_stage2"
+	type: "BatchNorm"
+	bottom: "conv1_uplow4_hourglass_stage2"
+	top: "bn2_uplow4_hourglass_stage2"
+	batch_norm_param{
+		use_global_stats: true
+		moving_averaging_fraction: 0.9
+		eps: 1e-5
+	}
+}
+layer{
+	name: "conv2_uplow4_hourglass_stage2"
+	type: "Convolution"
+	bottom: "bn2_uplow4_hourglass_stage2"
+	top: "conv2_uplow4_hourglass_stage2"
+	param{lr_mult: 1 decay_mult: 1}
+	param{lr_mult: 2 decay_mult: 0}
+	convolution_param{
+		num_output: 128 ## nFeat / 2
+		kernel_size: 3
+		stride: 1
+		pad: 1
+		weight_filler{
+			type: "gaussian"
+			std: 0.01
+		}
+		bias_filler{
+			type: "constant"
+			value: 0
+		}
+	}
+}
+layer{
+	name: "bn3_uplow4_hourglass_stage2"
+	type: "BatchNorm"
+	bottom: "conv2_uplow4_hourglass_stage2"
+	top: "bn3_uplow4_hourglass_stage2"
+	batch_norm_param{
+		use_global_stats: true
+		moving_averaging_fraction: 0.9
+		eps: 1e-5
+	}
+}
+layer{
+	name: "conv3_uplow4_hourglass_stage2"
+	type: "Convolution"
+	bottom: "bn3_uplow4_hourglass_stage2"
+	top: "conv3_uplow4_hourglass_stage2"
+	param{lr_mult: 1 decay_mult: 1}
+	param{lr_mult: 2 decay_mult: 0}
+	convolution_param{
+		num_output: 256 ## nFeat
+		kernel_size: 1
+		stride: 1
+		weight_filler{
+			type: "gaussian"
+			std: 0.01
+		}
+		bias_filler{
+			type: "constant"
+			value: 0
+		}
+	}
+}
+layer{
+	name: "elt_uplow4_hourglass_stage2"
+	type: "Eltwise"
+	bottom: "conv3_uplow4_hourglass_stage2"
+	bottom: "skip_uplow4_hourglass_stage2"
+	top: "elt_uplow4_hourglass_stage2"
+	eltwise_param{
+		operation: SUM
+	}
+}
+
+layer{
+	name: "Elt4_hourglass_stage2"
+	type: "Eltwise"
+	bottom: "elt_uplow4_hourglass_stage2"
+	bottom: "elt_up4_hourglass_stage2"
+	top: "Elt4_hourglass_stage2"
+	eltwise_param{
+		operation: SUM
+	}
+}
+##==== uplow3_hourglass_stage2
+layer{
+	name: "upSample_uplow3_hourglass_stage2"
+	type: "Deconvolution"
+	bottom: "Elt4_hourglass_stage2"
+	top: "upSample_uplow3_hourglass_stage2"
+	convolution_param{
+		kernel_h: 2
+		kernel_w: 2
+		stride_h: 2
+		stride_w: 2
+		pad_h: 0
+		pad_w: 0
+		num_output: 256
+		group: 256
+		bias_term: false
+		weight_filler{
+			type: "bilinear"
+		}
+	}
+	param{lr_mult: 0 decay_mult: 0}
+}
+layer{
+	name: 'skip_uplow3_hourglass_stage2'
+	type: "Convolution"
+	bottom: "upSample_uplow3_hourglass_stage2"
+	top: "skip_uplow3_hourglass_stage2"
+    param { lr_mult: 1 decay_mult: 1 }
+    param { lr_mult: 2 decay_mult: 0 }
+    convolution_param{
+    	num_output: 256 ## nFeat=256
+    	kernel_size: 1
+    	stride: 1
+    	weight_filler{
+    		type: "gaussian"
+    		std: 0.01
+    	}
+    	bias_filler{
+    		type: "constant"
+    		value: 0
+    	}
+    }
+}
+layer{
+	name: "bn1_uplow3_hourglass_stage2"
+	type: "BatchNorm"
+	bottom: "upSample_uplow3_hourglass_stage2"
+	top: "bn1_uplow3_hourglass_stage2"
+	batch_norm_param{
+		use_global_stats: true
+		moving_averaging_fraction: 0.9
+		eps: 1e-5
+	}
+}
+layer{
+	name: "conv1_uplow3_hourglass_stage2"
+	type: "Convolution"
+	bottom: "bn1_uplow3_hourglass_stage2"
+	top: "conv1_uplow3_hourglass_stage2"
+	param{lr_mult: 1 decay_mult: 1}
+	param{lr_mult: 2 decay_mult: 0}
+	convolution_param{
+		num_output: 128 ## nFeat / 2
+		kernel_size: 1
+		stride: 1
+		weight_filler{
+			type: "gaussian"
+			std: 0.01
+		}
+		bias_filler{
+			type: "constant"
+			value: 0
+		}
+	}
+}
+layer{
+	name: "bn2_uplow3_hourglass_stage2"
+	type: "BatchNorm"
+	bottom: "conv1_uplow3_hourglass_stage2"
+	top: "bn2_uplow3_hourglass_stage2"
+	batch_norm_param{
+		use_global_stats: true
+		moving_averaging_fraction: 0.9
+		eps: 1e-5
+	}
+}
+layer{
+	name: "conv2_uplow3_hourglass_stage2"
+	type: "Convolution"
+	bottom: "bn2_uplow3_hourglass_stage2"
+	top: "conv2_uplow3_hourglass_stage2"
+	param{lr_mult: 1 decay_mult: 1}
+	param{lr_mult: 2 decay_mult: 0}
+	convolution_param{
+		num_output: 128 ## nFeat / 2
+		kernel_size: 3
+		stride: 1
+		pad: 1
+		weight_filler{
+			type: "gaussian"
+			std: 0.01
+		}
+		bias_filler{
+			type: "constant"
+			value: 0
+		}
+	}
+}
+layer{
+	name: "bn3_uplow3_hourglass_stage2"
+	type: "BatchNorm"
+	bottom: "conv2_uplow3_hourglass_stage2"
+	top: "bn3_uplow3_hourglass_stage2"
+	batch_norm_param{
+		use_global_stats: true
+		moving_averaging_fraction: 0.9
+		eps: 1e-5
+	}
+}
+layer{
+	name: "conv3_uplow3_hourglass_stage2"
+	type: "Convolution"
+	bottom: "bn3_uplow3_hourglass_stage2"
+	top: "conv3_uplow3_hourglass_stage2"
+	param{lr_mult: 1 decay_mult: 1}
+	param{lr_mult: 2 decay_mult: 0}
+	convolution_param{
+		num_output: 256 ## nFeat
+		kernel_size: 1
+		stride: 1
+		weight_filler{
+			type: "gaussian"
+			std: 0.01
+		}
+		bias_filler{
+			type: "constant"
+			value: 0
+		}
+	}
+}
+layer{
+	name: "elt_uplow3_hourglass_stage2"
+	type: "Eltwise"
+	bottom: "conv3_uplow3_hourglass_stage2"
+	bottom: "skip_uplow3_hourglass_stage2"
+	top: "elt_uplow3_hourglass_stage2"
+	eltwise_param{
+		operation: SUM
+	}
+}
+
+layer{
+	name: "Elt3_hourglass_stage2"
+	type: "Eltwise"
+	bottom: "elt_uplow3_hourglass_stage2"
+	bottom: "elt_up3_hourglass_stage2"
+	top: "Elt3_hourglass_stage2"
+	eltwise_param{
+		operation: SUM
+	}
+}
+
+##==== uplow2_hourglass_stage2
+layer{
+	name: "upSample_uplow2_hourglass_stage2"
+	type: "Deconvolution"
+	bottom: "Elt3_hourglass_stage2"
+	top: "upSample_uplow2_hourglass_stage2"
+	convolution_param {
+		kernel_h: 2
+		kernel_w: 2
+		stride_h: 2
+		stride_w: 2
+		pad_h: 0
+		pad_w: 0
+		num_output: 256
+		group: 256
+		bias_term: false
+		weight_filler {
+		  type: "bilinear"
+		}
+	}
+	param {
+		lr_mult: 0
+		decay_mult: 0
+	}
+}
+layer{
+	name: 'skip_uplow2_hourglass_stage2'
+	type: "Convolution"
+	bottom: "upSample_uplow2_hourglass_stage2"
+	top: "skip_uplow2_hourglass_stage2"
+    param { lr_mult: 1 decay_mult: 1 }
+    param { lr_mult: 2 decay_mult: 0 }
+    convolution_param{
+    	num_output: 256 ## nFeat=256
+    	kernel_size: 1
+    	stride: 1
+    	weight_filler{
+    		type: "gaussian"
+    		std: 0.01
+    	}
+    	bias_filler{
+    		type: "constant"
+    		value: 0
+    	}
+    }
+}
+layer{
+	name: "bn1_uplow2_hourglass_stage2"
+	type: "BatchNorm"
+	bottom: "upSample_uplow2_hourglass_stage2"
+	top: "bn1_uplow2_hourglass_stage2"
+	batch_norm_param{
+		use_global_stats: true
+		moving_averaging_fraction: 0.9
+		eps: 1e-5
+	}
+}
+layer{
+	name: "conv1_uplow2_hourglass_stage2"
+	type: "Convolution"
+	bottom: "bn1_uplow2_hourglass_stage2"
+	top: "conv1_uplow2_hourglass_stage2"
+	param{lr_mult: 1 decay_mult: 1}
+	param{lr_mult: 2 decay_mult: 0}
+	convolution_param{
+		num_output: 128 ## nFeat / 2
+		kernel_size: 1
+		stride: 1
+		weight_filler{
+			type: "gaussian"
+			std: 0.01
+		}
+		bias_filler{
+			type: "constant"
+			value: 0
+		}
+	}
+}
+layer{
+	name: "bn2_uplow2_hourglass_stage2"
+	type: "BatchNorm"
+	bottom: "conv1_uplow2_hourglass_stage2"
+	top: "bn2_uplow2_hourglass_stage2"
+	batch_norm_param{
+		use_global_stats: true
+		moving_averaging_fraction: 0.9
+		eps: 1e-5
+	}
+}
+layer{
+	name: "conv2_uplow2_hourglass_stage2"
+	type: "Convolution"
+	bottom: "bn2_uplow2_hourglass_stage2"
+	top: "conv2_uplow2_hourglass_stage2"
+	param{lr_mult: 1 decay_mult: 1}
+	param{lr_mult: 2 decay_mult: 0}
+	convolution_param{
+		num_output: 128 ## nFeat / 2
+		kernel_size: 3
+		stride: 1
+		pad: 1
+		weight_filler{
+			type: "gaussian"
+			std: 0.01
+		}
+		bias_filler{
+			type: "constant"
+			value: 0
+		}
+	}
+}
+layer{
+	name: "bn3_uplow2_hourglass_stage2"
+	type: "BatchNorm"
+	bottom: "conv2_uplow2_hourglass_stage2"
+	top: "bn3_uplow2_hourglass_stage2"
+	batch_norm_param{
+		use_global_stats: true
+		moving_averaging_fraction: 0.9
+		eps: 1e-5
+	}
+}
+layer{
+	name: "conv3_uplow2_hourglass_stage2"
+	type: "Convolution"
+	bottom: "bn3_uplow2_hourglass_stage2"
+	top: "conv3_uplow2_hourglass_stage2"
+	param{lr_mult: 1 decay_mult: 1}
+	param{lr_mult: 2 decay_mult: 0}
+	convolution_param{
+		num_output: 256 ## nFeat
+		kernel_size: 1
+		stride: 1
+		weight_filler{
+			type: "gaussian"
+			std: 0.01
+		}
+		bias_filler{
+			type: "constant"
+			value: 0
+		}
+	}
+}
+layer{
+	name: "elt_uplow2_hourglass_stage2"
+	type: "Eltwise"
+	bottom: "conv3_uplow2_hourglass_stage2"
+	bottom: "skip_uplow2_hourglass_stage2"
+	top: "elt_uplow2_hourglass_stage2"
+	eltwise_param{
+		operation: SUM
+	}
+}
+
+layer{
+	name: "Elt2_hourglass_stage2"
+	type: "Eltwise"
+	bottom: "elt_uplow2_hourglass_stage2"
+	bottom: "elt_up2_hourglass_stage2"
+	top: "Elt2_hourglass_stage2"
+	eltwise_param{
+		operation: SUM
+	}
+}
+
+##==== uplow1_hourglass_stage2
+layer{
+	name: "upSample_uplow1_hourglass_stage2"
+	type: "Deconvolution"
+	bottom: "Elt2_hourglass_stage2"
+	top: "upSample_uplow1_hourglass_stage2"
+	convolution_param {
+		kernel_h: 2
+		kernel_w: 2
+		stride_h: 2
+		stride_w: 2
+		pad_h: 0
+		pad_w: 0
+		num_output: 256
+		group: 256
+		bias_term: false
+		weight_filler {
+		  type: "bilinear"
+		}
+	}
+	param {
+		lr_mult: 0
+		decay_mult: 0
+	}
+}
+layer{
+	name: 'skip_uplow1_hourglass_stage2'
+	type: "Convolution"
+	bottom: "upSample_uplow1_hourglass_stage2"
+	top: "skip_uplow1_hourglass_stage2"
+    param { lr_mult: 1 decay_mult: 1 }
+    param { lr_mult: 2 decay_mult: 0 }
+    convolution_param{
+    	num_output: 256 ## nFeat=256
+    	kernel_size: 1
+    	stride: 1
+    	weight_filler{
+    		type: "gaussian"
+    		std: 0.01
+    	}
+    	bias_filler{
+    		type: "constant"
+    		value: 0
+    	}
+    }
+}
+layer{
+	name: "bn1_uplow1_hourglass_stage2"
+	type: "BatchNorm"
+	bottom: "upSample_uplow1_hourglass_stage2"
+	top: "bn1_uplow1_hourglass_stage2"
+	batch_norm_param{
+		use_global_stats: true
+		moving_averaging_fraction: 0.9
+		eps: 1e-5
+	}
+}
+layer{
+	name: "conv1_uplow1_hourglass_stage2"
+	type: "Convolution"
+	bottom: "bn1_uplow1_hourglass_stage2"
+	top: "conv1_uplow1_hourglass_stage2"
+	param{lr_mult: 1 decay_mult: 1}
+	param{lr_mult: 2 decay_mult: 0}
+	convolution_param{
+		num_output: 128 ## nFeat / 2
+		kernel_size: 1
+		stride: 1
+		weight_filler{
+			type: "gaussian"
+			std: 0.01
+		}
+		bias_filler{
+			type: "constant"
+			value: 0
+		}
+	}
+}
+layer{
+	name: "bn2_uplow1_hourglass_stage2"
+	type: "BatchNorm"
+	bottom: "conv1_uplow1_hourglass_stage2"
+	top: "bn2_uplow1_hourglass_stage2"
+	batch_norm_param{
+		use_global_stats: true
+		moving_averaging_fraction: 0.9
+		eps: 1e-5
+	}
+}
+layer{
+	name: "conv2_uplow1_hourglass_stage2"
+	type: "Convolution"
+	bottom: "bn2_uplow1_hourglass_stage2"
+	top: "conv2_uplow1_hourglass_stage2"
+	param{lr_mult: 1 decay_mult: 1}
+	param{lr_mult: 2 decay_mult: 0}
+	convolution_param{
+		num_output: 128 ## nFeat / 2
+		kernel_size: 3
+		stride: 1
+		pad: 1
+		weight_filler{
+			type: "gaussian"
+			std: 0.01
+		}
+		bias_filler{
+			type: "constant"
+			value: 0
+		}
+	}
+}
+layer{
+	name: "bn3_uplow1_hourglass_stage2"
+	type: "BatchNorm"
+	bottom: "conv2_uplow1_hourglass_stage2"
+	top: "bn3_uplow1_hourglass_stage2"
+	batch_norm_param{
+		use_global_stats: true
+		moving_averaging_fraction: 0.9
+		eps: 1e-5
+	}
+}
+layer{
+	name: "conv3_uplow1_hourglass_stage2"
+	type: "Convolution"
+	bottom: "bn3_uplow1_hourglass_stage2"
+	top: "conv3_uplow1_hourglass_stage2"
+	param{lr_mult: 1 decay_mult: 1}
+	param{lr_mult: 2 decay_mult: 0}
+	convolution_param{
+		num_output: 256 ## nFeat
+		kernel_size: 1
+		stride: 1
+		weight_filler{
+			type: "gaussian"
+			std: 0.01
+		}
+		bias_filler{
+			type: "constant"
+			value: 0
+		}
+	}
+}
+layer{
+	name: "elt_uplow1_hourglass_stage2"
+	type: "Eltwise"
+	bottom: "conv3_uplow1_hourglass_stage2"
+	bottom: "skip_uplow1_hourglass_stage2"
+	top: "elt_uplow1_hourglass_stage2"
+	eltwise_param{
+		operation: SUM
+	}
+}
+layer{
+	name: "Elt1_hourglass_stage2"
+	type: "Eltwise"
+	bottom: "elt_uplow1_hourglass_stage2"
+	bottom: "elt_up1_hourglass_stage2"
+	top: "Elt1_hourglass_stage2"
+	eltwise_param{
+		operation: SUM
+	}
+}
+
+layer{
+	name: "dropout_hourglass_stage2"
+	type: "Dropout"
+	bottom: "Elt1_hourglass_stage2"
+	top: "dropout_hourglass_stage2"
+	dropout_param{
+		dropout_ratio: 0.2
+	}
+}
+layer{
+	name: "conv1_hourglass_stage2"
+	type: "Convolution"
+	bottom: "dropout_hourglass_stage2"
+	top: "conv1_hourglass_stage2"
+	param{lr_mult: 1 decay_mult: 1}
+	param{lr_mult: 2 decay_mult: 0}
+	convolution_param{
+		num_output: 256 ## nFeat
+		kernel_size: 1
+		stride: 1
+		weight_filler{
+			type: "gaussian"
+			std: 0.01
+		}
+		bias_filler{
+			type: "constant"
+			value: 0
+		}
+	}
+}
+layer{
+	name: "bn1_hourglass_stage2"
+	type: "BatchNorm"
+	bottom: "conv1_hourglass_stage2"
+	top: "bn1_hourglass_stage2"
+	batch_norm_param{
+		use_global_stats: true
+		moving_averaging_fraction: 0.9
+		eps: 1e-5
+	}
+}
+layer{
+	name: "out_hourglass_stage2"
+	type: "Convolution"
+	bottom: "bn1_hourglass_stage2"
+	top: "out_hourglass_stage2"
+	param{lr_mult: 0.00025 decay_rate: 0.96}
+	param{lr_mult: 0 decay_rate: 0}
+	convolution_param{
+		num_output: 16 ## outDim, number of output Dimension (16 for MPII)
+		kernel_size: 1
+		stride: 1
+		weight_filler{
+			type: "gaussian"
+			std: 0.01
+		}
+		bias_filler{
+			type: "constant"
+			value: 0
+		}
+	}
+}
+layer{
+	name: "out2_hourglass_stage2"
+	type: "Convolution"
+	bottom: "out_hourglass_stage2"
+	top: "out2_hourglass_stage2"
+	param{lr_mult: 0.00025 decay_mult: 0.96}
+	param{lr_mult: 0 decay_mult: 0}
+	convolution_param{
+		num_output: 256 ## nFeat
+		kernel_size: 1
+		stride: 1
+		weight_filler{
+			type: "gaussian"
+			std: 0.01
+		}
+		bias_filler{
+			type: "constant"
+			value: 0
+		}
+	}
+}
+layer{
+	name: "conv2_hourglass_stage2"
+	type: "Convolution"
+	bottom: "bn1_hourglass_stage2"
+	top: "conv2_hourglass_stage2"
+	param{lr_mult: 0.00025 decay_mult: 0.96}
+	param{lr_mult: 0 decay_mult: 0}
+	convolution_param{
+		num_output: 256 ## nFeat
+		kernel_size: 1
+		stride: 1
+		weight_filler{
+			type: "gaussian"
+			std: 0.01
+		}
+		bias_filler{
+			type: "constant"
+			value: 0
+		}
+	}
+}
+layer{
+	name: "sum_hourglass_stage2"
+	type: "Eltwise"
+	bottom: "out2_hourglass_stage2"
+	bottom: "conv2_hourglass_stage2"
+	bottom: "sum_hourglass_stage1"
+	top: "sum_hourglass_stage2"
+	eltwise_param{
+		operation: SUM
+	}
+}
+
+##============================== hourglass_stage3 =====================================
+
+# number of downsampling step: nLow = 4
+# number of output features: nFeat = 256
+
+## ==== hourglass_stage3 ====
+## up1_hourglass_stage3
+layer{
+	name: 'skip_up1_hourglass_stage3'
+	type: "Convolution"
+	bottom: "sum_hourglass_stage2"
+	top: "skip_up1_hourglass_stage3"
+    param { lr_mult: 1 decay_mult: 1 }
+    param { lr_mult: 2 decay_mult: 0 }
+    convolution_param{
+    	num_output: 256 ## nFeat=256
+    	kernel_size: 1
+    	stride: 1
+    	weight_filler{
+    		type: "gaussian"
+    		std: 0.01
+    	}
+    	bias_filler{
+    		type: "constant"
+    		value: 0
+    	}
+    }
+}
+layer{
+	name: "bn1_up1_hourglass_stage3"
+	type: "BatchNorm"
+	bottom: "sum_hourglass_stage2"
+	top: "bn1_up1_hourglass_stage3"
+	batch_norm_param{
+		use_global_stats: true
+		moving_averaging_fraction: 0.9
+		eps: 1e-5
+	}
+}
+layer{
+	name: "conv1_up1_hourglass_stage3"
+	type: "Convolution"
+	bottom: "bn1_up1_hourglass_stage3"
+	top: "conv1_up1_hourglass_stage3"
+	param{lr_mult: 1 decay_mult: 1}
+	param{lr_mult: 2 decay_mult: 0}
+	convolution_param{
+		num_output: 128 ## nFeat / 2
+		kernel_size: 1
+		stride: 1
+		weight_filler{
+			type: "gaussian"
+			std: 0.01
+		}
+		bias_filler{
+			type: "constant"
+			value: 0
+		}
+	}
+}
+layer{
+	name: "bn2_up1_hourglass_stage3"
+	type: "BatchNorm"
+	bottom: "conv1_up1_hourglass_stage3"
+	top: "bn2_up1_hourglass_stage3"
+	batch_norm_param{
+		use_global_stats: true
+		moving_averaging_fraction: 0.9
+		eps: 1e-5
+	}
+}
+layer{
+	name: "conv2_up1_hourglass_stage3"
+	type: "Convolution"
+	bottom: "bn2_up1_hourglass_stage3"
+	top: "conv2_up1_hourglass_stage3"
+	param{lr_mult: 1 decay_mult: 1}
+	param{lr_mult: 2 decay_mult: 0}
+	convolution_param{
+		num_output: 128 ## nFeat / 2
+		kernel_size: 3
+		stride: 1
+		pad: 1
+		weight_filler{
+			type: "gaussian"
+			std: 0.01
+		}
+		bias_filler{
+			type: "constant"
+			value: 0
+		}
+	}
+}
+layer{
+	name: "bn3_up1_hourglass_stage3"
+	type: "BatchNorm"
+	bottom: "conv2_up1_hourglass_stage3"
+	top: "bn3_up1_hourglass_stage3"
+	batch_norm_param{
+		use_global_stats: true
+		moving_averaging_fraction: 0.9
+		eps: 1e-5
+	}
+}
+layer{
+	name: "conv3_up1_hourglass_stage3"
+	type: "Convolution"
+	bottom: "bn3_up1_hourglass_stage3"
+	top: "conv3_up1_hourglass_stage3"
+	param{lr_mult: 1 decay_mult: 1}
+	param{lr_mult: 2 decay_mult: 0}
+	convolution_param{
+		num_output: 256 ## nFeat
+		kernel_size: 1
+		stride: 1
+		weight_filler{
+			type: "gaussian"
+			std: 0.01
+		}
+		bias_filler{
+			type: "constant"
+			value: 0
+		}
+	}
+}
+layer{
+	name: "elt_up1_hourglass_stage3"
+	type: "Eltwise"
+	bottom: "conv3_up1_hourglass_stage3"
+	bottom: "skip_up1_hourglass_stage3"
+	top: "elt_up1_hourglass_stage3"
+	eltwise_param{
+		operation: SUM
+	}
+}
+
+##=== low1_hourglass_stage3
+layer{
+	name: "pool_low1_hourglass_stage3"
+	type: "Pooling"
+	bottom: "sum_hourglass_stage2"
+	top: "pool_low1_hourglass_stage3"
+	pooling_param{
+		pool: MAX
+		kernel_size: 2
+		stride: 2
+	}
+}
+layer{
+	name: 'skip_low1_hourglass_stage3'
+	type: "Convolution"
+	bottom: "pool_low1_hourglass_stage3"
+	top: "skip_low1_hourglass_stage3"
+    param { lr_mult: 1 decay_mult: 1 }
+    param { lr_mult: 2 decay_mult: 0 }
+    convolution_param{
+    	num_output: 256 ## nFeat=256
+    	kernel_size: 1
+    	stride: 1
+    	weight_filler{
+    		type: "gaussian"
+    		std: 0.01
+    	}
+    	bias_filler{
+    		type: "constant"
+    		value: 0
+    	}
+    }
+}
+layer{
+	name: "bn1_low1_hourglass_stage3"
+	type: "BatchNorm"
+	bottom: "pool_low1_hourglass_stage3"
+	top: "bn1_low1_hourglass_stage3"
+	batch_norm_param{
+		use_global_stats: true
+		moving_averaging_fraction: 0.9
+		eps: 1e-5
+	}
+}
+layer{
+	name: "conv1_low1_hourglass_stage3"
+	type: "Convolution"
+	bottom: "bn1_low1_hourglass_stage3"
+	top: "conv1_low1_hourglass_stage3"
+	param{lr_mult: 1 decay_mult: 1}
+	param{lr_mult: 2 decay_mult: 0}
+	convolution_param{
+		num_output: 128 ## nFeat / 2
+		kernel_size: 1
+		stride: 1
+		weight_filler{
+			type: "gaussian"
+			std: 0.01
+		}
+		bias_filler{
+			type: "constant"
+			value: 0
+		}
+	}
+}
+layer{
+	name: "bn2_low1_hourglass_stage3"
+	type: "BatchNorm"
+	bottom: "conv1_low1_hourglass_stage3"
+	top: "bn2_low1_hourglass_stage3"
+	batch_norm_param{
+		use_global_stats: true
+		moving_averaging_fraction: 0.9
+		eps: 1e-5
+	}
+}
+layer{
+	name: "conv2_low1_hourglass_stage3"
+	type: "Convolution"
+	bottom: "bn2_low1_hourglass_stage3"
+	top: "conv2_low1_hourglass_stage3"
+	param{lr_mult: 1 decay_mult: 1}
+	param{lr_mult: 2 decay_mult: 0}
+	convolution_param{
+		num_output: 128 ## nFeat / 2
+		kernel_size: 3
+		stride: 1
+		pad: 1
+		weight_filler{
+			type: "gaussian"
+			std: 0.01
+		}
+		bias_filler{
+			type: "constant"
+			value: 0
+		}
+	}
+}
+layer{
+	name: "bn3_low1_hourglass_stage3"
+	type: "BatchNorm"
+	bottom: "conv2_low1_hourglass_stage3"
+	top: "bn3_low1_hourglass_stage3"
+	batch_norm_param{
+		use_global_stats: true
+		moving_averaging_fraction: 0.9
+		eps: 1e-5
+	}
+}
+layer{
+	name: "conv3_low1_hourglass_stage3"
+	type: "Convolution"
+	bottom: "bn3_low1_hourglass_stage3"
+	top: "conv3_low1_hourglass_stage3"
+	param{lr_mult: 1 decay_mult: 1}
+	param{lr_mult: 2 decay_mult: 0}
+	convolution_param{
+		num_output: 256 ## nFeat
+		kernel_size: 1
+		stride: 1
+		weight_filler{
+			type: "gaussian"
+			std: 0.01
+		}
+		bias_filler{
+			type: "constant"
+			value: 0
+		}
+	}
+}
+layer{
+	name: "elt_low1_hourglass_stage3"
+	type: "Eltwise"
+	bottom: "conv3_low1_hourglass_stage3"
+	bottom: "skip_low1_hourglass_stage3"
+	top: "elt_low1_hourglass_stage3"
+	eltwise_param{
+		operation: SUM
+	}
+}
+
+##==== up2_hourglass_stage3
+layer{
+	name: 'skip_up2_hourglass_stage3'
+	type: "Convolution"
+	bottom: "elt_low1_hourglass_stage3"
+	top: "skip_up2_hourglass_stage3"
+    param { lr_mult: 1 decay_mult: 1 }
+    param { lr_mult: 2 decay_mult: 0 }
+    convolution_param{
+    	num_output: 256 ## nFeat=256
+    	kernel_size: 1
+    	stride: 1
+    	weight_filler{
+    		type: "gaussian"
+    		std: 0.01
+    	}
+    	bias_filler{
+    		type: "constant"
+    		value: 0
+    	}
+    }
+}
+layer{
+	name: "bn1_up2_hourglass_stage3"
+	type: "BatchNorm"
+	bottom: "elt_low1_hourglass_stage3"
+	top: "bn1_up2_hourglass_stage3"
+	batch_norm_param{
+		use_global_stats: true
+		moving_averaging_fraction: 0.9
+		eps: 1e-5
+	}
+}
+layer{
+	name: "conv1_up2_hourglass_stage3"
+	type: "Convolution"
+	bottom: "bn1_up2_hourglass_stage3"
+	top: "conv1_up2_hourglass_stage3"
+	param{lr_mult: 1 decay_mult: 1}
+	param{lr_mult: 2 decay_mult: 0}
+	convolution_param{
+		num_output: 128 ## nFeat / 2
+		kernel_size: 1
+		stride: 1
+		weight_filler{
+			type: "gaussian"
+			std: 0.01
+		}
+		bias_filler{
+			type: "constant"
+			value: 0
+		}
+	}
+}
+layer{
+	name: "bn2_up2_hourglass_stage3"
+	type: "BatchNorm"
+	bottom: "conv1_up2_hourglass_stage3"
+	top: "bn2_up2_hourglass_stage3"
+	batch_norm_param{
+		use_global_stats: true
+		moving_averaging_fraction: 0.9
+		eps: 1e-5
+	}
+}
+layer{
+	name: "conv2_up2_hourglass_stage3"
+	type: "Convolution"
+	bottom: "bn2_up2_hourglass_stage3"
+	top: "conv2_up2_hourglass_stage3"
+	param{lr_mult: 1 decay_mult: 1}
+	param{lr_mult: 2 decay_mult: 0}
+	convolution_param{
+		num_output: 128 ## nFeat / 2
+		kernel_size: 3
+		stride: 1
+		pad: 1
+		weight_filler{
+			type: "gaussian"
+			std: 0.01
+		}
+		bias_filler{
+			type: "constant"
+			value: 0
+		}
+	}
+}
+layer{
+	name: "bn3_up2_hourglass_stage3"
+	type: "BatchNorm"
+	bottom: "conv2_up2_hourglass_stage3"
+	top: "bn3_up2_hourglass_stage3"
+	batch_norm_param{
+		use_global_stats: true
+		moving_averaging_fraction: 0.9
+		eps: 1e-5
+	}
+}
+layer{
+	name: "conv3_up2_hourglass_stage3"
+	type: "Convolution"
+	bottom: "bn3_up2_hourglass_stage3"
+	top: "conv3_up2_hourglass_stage3"
+	param{lr_mult: 1 decay_mult: 1}
+	param{lr_mult: 2 decay_mult: 0}
+	convolution_param{
+		num_output: 256 ## nFeat
+		kernel_size: 1
+		stride: 1
+		weight_filler{
+			type: "gaussian"
+			std: 0.01
+		}
+		bias_filler{
+			type: "constant"
+			value: 0
+		}
+	}
+}
+layer{
+	name: "elt_up2_hourglass_stage3"
+	type: "Eltwise"
+	bottom: "conv3_up2_hourglass_stage3"
+	bottom: "skip_up2_hourglass_stage3"
+	top: "elt_up2_hourglass_stage3"
+	eltwise_param{
+		operation: SUM
+	}
+}
+##==== low2_hourglass_stage3
+layer{
+	name: "pool_low2_hourglass_stage3"
+	type: "Pooling"
+	bottom: "elt_low1_hourglass_stage3"
+	top: "pool_low2_hourglass_stage3"
+	pooling_param{
+		pool: MAX
+		kernel_size: 2
+		stride: 2
+	}
+}
+layer{
+	name: 'skip_low2_hourglass_stage3'
+	type: "Convolution"
+	bottom: "pool_low2_hourglass_stage3"
+	top: "skip_low2_hourglass_stage3"
+    param { lr_mult: 1 decay_mult: 1 }
+    param { lr_mult: 2 decay_mult: 0 }
+    convolution_param{
+    	num_output: 256 ## nFeat=256
+    	kernel_size: 1
+    	stride: 1
+    	weight_filler{
+    		type: "gaussian"
+    		std: 0.01
+    	}
+    	bias_filler{
+    		type: "constant"
+    		value: 0
+    	}
+    }
+}
+layer{
+	name: "bn1_low2_hourglass_stage3"
+	type: "BatchNorm"
+	bottom: "pool_low2_hourglass_stage3"
+	top: "bn1_low2_hourglass_stage3"
+	batch_norm_param{
+		use_global_stats: true
+		moving_averaging_fraction: 0.9
+		eps: 1e-5
+	}
+}
+layer{
+	name: "conv1_low2_hourglass_stage3"
+	type: "Convolution"
+	bottom: "bn1_low2_hourglass_stage3"
+	top: "conv1_low2_hourglass_stage3"
+	param{lr_mult: 1 decay_mult: 1}
+	param{lr_mult: 2 decay_mult: 0}
+	convolution_param{
+		num_output: 128 ## nFeat / 2
+		kernel_size: 1
+		stride: 1
+		weight_filler{
+			type: "gaussian"
+			std: 0.01
+		}
+		bias_filler{
+			type: "constant"
+			value: 0
+		}
+	}
+}
+layer{
+	name: "bn2_low2_hourglass_stage3"
+	type: "BatchNorm"
+	bottom: "conv1_low2_hourglass_stage3"
+	top: "bn2_low2_hourglass_stage3"
+	batch_norm_param{
+		use_global_stats: true
+		moving_averaging_fraction: 0.9
+		eps: 1e-5
+	}
+}
+layer{
+	name: "conv2_low2_hourglass_stage3"
+	type: "Convolution"
+	bottom: "bn2_low2_hourglass_stage3"
+	top: "conv2_low2_hourglass_stage3"
+	param{lr_mult: 1 decay_mult: 1}
+	param{lr_mult: 2 decay_mult: 0}
+	convolution_param{
+		num_output: 128 ## nFeat / 2
+		kernel_size: 3
+		stride: 1
+		pad: 1
+		weight_filler{
+			type: "gaussian"
+			std: 0.01
+		}
+		bias_filler{
+			type: "constant"
+			value: 0
+		}
+	}
+}
+layer{
+	name: "bn3_low2_hourglass_stage3"
+	type: "BatchNorm"
+	bottom: "conv2_low2_hourglass_stage3"
+	top: "bn3_low2_hourglass_stage3"
+	batch_norm_param{
+		use_global_stats: true
+		moving_averaging_fraction: 0.9
+		eps: 1e-5
+	}
+}
+layer{
+	name: "conv3_low2_hourglass_stage3"
+	type: "Convolution"
+	bottom: "bn3_low2_hourglass_stage3"
+	top: "conv3_low2_hourglass_stage3"
+	param{lr_mult: 1 decay_mult: 1}
+	param{lr_mult: 2 decay_mult: 0}
+	convolution_param{
+		num_output: 256 ## nFeat
+		kernel_size: 1
+		stride: 1
+		weight_filler{
+			type: "gaussian"
+			std: 0.01
+		}
+		bias_filler{
+			type: "constant"
+			value: 0
+		}
+	}
+}
+layer{
+	name: "elt_low2_hourglass_stage3"
+	type: "Eltwise"
+	bottom: "conv3_low2_hourglass_stage3"
+	bottom: "skip_low2_hourglass_stage3"
+	top: "elt_low2_hourglass_stage3"
+	eltwise_param{
+		operation: SUM
+	}
+}
+##==== up3_hourglass_stage3
+layer{
+	name: 'skip_up3_hourglass_stage3'
+	type: "Convolution"
+	bottom: "elt_low2_hourglass_stage3"
+	top: "skip_up3_hourglass_stage3"
+    param { lr_mult: 1 decay_mult: 1 }
+    param { lr_mult: 2 decay_mult: 0 }
+    convolution_param{
+    	num_output: 256 ## nFeat=256
+    	kernel_size: 1
+    	stride: 1
+    	weight_filler{
+    		type: "gaussian"
+    		std: 0.01
+    	}
+    	bias_filler{
+    		type: "constant"
+    		value: 0
+    	}
+    }
+}
+layer{
+	name: "bn1_up3_hourglass_stage3"
+	type: "BatchNorm"
+	bottom: "elt_low2_hourglass_stage3"
+	top: "bn1_up3_hourglass_stage3"
+	batch_norm_param{
+		use_global_stats: true
+		moving_averaging_fraction: 0.9
+		eps: 1e-5
+	}
+}
+layer{
+	name: "conv1_up3_hourglass_stage3"
+	type: "Convolution"
+	bottom: "bn1_up3_hourglass_stage3"
+	top: "conv1_up3_hourglass_stage3"
+	param{lr_mult: 1 decay_mult: 1}
+	param{lr_mult: 2 decay_mult: 0}
+	convolution_param{
+		num_output: 128 ## nFeat / 2
+		kernel_size: 1
+		stride: 1
+		weight_filler{
+			type: "gaussian"
+			std: 0.01
+		}
+		bias_filler{
+			type: "constant"
+			value: 0
+		}
+	}
+}
+layer{
+	name: "bn2_up3_hourglass_stage3"
+	type: "BatchNorm"
+	bottom: "conv1_up3_hourglass_stage3"
+	top: "bn2_up3_hourglass_stage3"
+	batch_norm_param{
+		use_global_stats: true
+		moving_averaging_fraction: 0.9
+		eps: 1e-5
+	}
+}
+layer{
+	name: "conv2_up3_hourglass_stage3"
+	type: "Convolution"
+	bottom: "bn2_up3_hourglass_stage3"
+	top: "conv2_up3_hourglass_stage3"
+	param{lr_mult: 1 decay_mult: 1}
+	param{lr_mult: 2 decay_mult: 0}
+	convolution_param{
+		num_output: 128 ## nFeat / 2
+		kernel_size: 3
+		stride: 1
+		pad: 1
+		weight_filler{
+			type: "gaussian"
+			std: 0.01
+		}
+		bias_filler{
+			type: "constant"
+			value: 0
+		}
+	}
+}
+layer{
+	name: "bn3_up3_hourglass_stage3"
+	type: "BatchNorm"
+	bottom: "conv2_up3_hourglass_stage3"
+	top: "bn3_up3_hourglass_stage3"
+	batch_norm_param{
+		use_global_stats: true
+		moving_averaging_fraction: 0.9
+		eps: 1e-5
+	}
+}
+layer{
+	name: "conv3_up3_hourglass_stage3"
+	type: "Convolution"
+	bottom: "bn3_up3_hourglass_stage3"
+	top: "conv3_up3_hourglass_stage3"
+	param{lr_mult: 1 decay_mult: 1}
+	param{lr_mult: 2 decay_mult: 0}
+	convolution_param{
+		num_output: 256 ## nFeat
+		kernel_size: 1
+		stride: 1
+		weight_filler{
+			type: "gaussian"
+			std: 0.01
+		}
+		bias_filler{
+			type: "constant"
+			value: 0
+		}
+	}
+}
+layer{
+	name: "elt_up3_hourglass_stage3"
+	type: "Eltwise"
+	bottom: "conv3_up3_hourglass_stage3"
+	bottom: "skip_up3_hourglass_stage3"
+	top: "elt_up3_hourglass_stage3"
+	eltwise_param{
+		operation: SUM
+	}
+}
+##==== low3_hourglass_stage3
+layer{
+	name: "pool_low3_hourglass_stage3"
+	type: "Pooling"
+	bottom: "elt_low2_hourglass_stage3"
+	top: "pool_low3_hourglass_stage3"
+	pooling_param{
+		pool: MAX
+		kernel_size: 2
+		stride: 2
+	}
+}
+layer{
+	name: 'skip_low3_hourglass_stage3'
+	type: "Convolution"
+	bottom: "pool_low3_hourglass_stage3"
+	top: "skip_low3_hourglass_stage3"
+    param { lr_mult: 1 decay_mult: 1 }
+    param { lr_mult: 2 decay_mult: 0 }
+    convolution_param{
+    	num_output: 256 ## nFeat=256
+    	kernel_size: 1
+    	stride: 1
+    	weight_filler{
+    		type: "gaussian"
+    		std: 0.01
+    	}
+    	bias_filler{
+    		type: "constant"
+    		value: 0
+    	}
+    }
+}
+layer{
+	name: "bn1_low3_hourglass_stage3"
+	type: "BatchNorm"
+	bottom: "pool_low3_hourglass_stage3"
+	top: "bn1_low3_hourglass_stage3"
+	batch_norm_param{
+		use_global_stats: true
+		moving_averaging_fraction: 0.9
+		eps: 1e-5
+	}
+}
+layer{
+	name: "conv1_low3_hourglass_stage3"
+	type: "Convolution"
+	bottom: "bn1_low3_hourglass_stage3"
+	top: "conv1_low3_hourglass_stage3"
+	param{lr_mult: 1 decay_mult: 1}
+	param{lr_mult: 2 decay_mult: 0}
+	convolution_param{
+		num_output: 128 ## nFeat / 2
+		kernel_size: 1
+		stride: 1
+		weight_filler{
+			type: "gaussian"
+			std: 0.01
+		}
+		bias_filler{
+			type: "constant"
+			value: 0
+		}
+	}
+}
+layer{
+	name: "bn2_low3_hourglass_stage3"
+	type: "BatchNorm"
+	bottom: "conv1_low3_hourglass_stage3"
+	top: "bn2_low3_hourglass_stage3"
+	batch_norm_param{
+		use_global_stats: true
+		moving_averaging_fraction: 0.9
+		eps: 1e-5
+	}
+}
+layer{
+	name: "conv2_low3_hourglass_stage3"
+	type: "Convolution"
+	bottom: "bn2_low3_hourglass_stage3"
+	top: "conv2_low3_hourglass_stage3"
+	param{lr_mult: 1 decay_mult: 1}
+	param{lr_mult: 2 decay_mult: 0}
+	convolution_param{
+		num_output: 128 ## nFeat / 2
+		kernel_size: 3
+		stride: 1
+		pad: 1
+		weight_filler{
+			type: "gaussian"
+			std: 0.01
+		}
+		bias_filler{
+			type: "constant"
+			value: 0
+		}
+	}
+}
+layer{
+	name: "bn3_low3_hourglass_stage3"
+	type: "BatchNorm"
+	bottom: "conv2_low3_hourglass_stage3"
+	top: "bn3_low3_hourglass_stage3"
+	batch_norm_param{
+		use_global_stats: true
+		moving_averaging_fraction: 0.9
+		eps: 1e-5
+	}
+}
+layer{
+	name: "conv3_low3_hourglass_stage3"
+	type: "Convolution"
+	bottom: "bn3_low3_hourglass_stage3"
+	top: "conv3_low3_hourglass_stage3"
+	param{lr_mult: 1 decay_mult: 1}
+	param{lr_mult: 2 decay_mult: 0}
+	convolution_param{
+		num_output: 256 ## nFeat
+		kernel_size: 1
+		stride: 1
+		weight_filler{
+			type: "gaussian"
+			std: 0.01
+		}
+		bias_filler{
+			type: "constant"
+			value: 0
+		}
+	}
+}
+layer{
+	name: "elt_low3_hourglass_stage3"
+	type: "Eltwise"
+	bottom: "conv3_low3_hourglass_stage3"
+	bottom: "skip_low3_hourglass_stage3"
+	top: "elt_low3_hourglass_stage3"
+	eltwise_param{
+		operation: SUM
+	}
+}
+##==== up4_hourglass_stage3
+layer{
+	name: 'skip_up4_hourglass_stage3'
+	type: "Convolution"
+	bottom: "elt_low3_hourglass_stage3"
+	top: "skip_up4_hourglass_stage3"
+    param { lr_mult: 1 decay_mult: 1 }
+    param { lr_mult: 2 decay_mult: 0 }
+    convolution_param{
+    	num_output: 256 ## nFeat=256
+    	kernel_size: 1
+    	stride: 1
+    	weight_filler{
+    		type: "gaussian"
+    		std: 0.01
+    	}
+    	bias_filler{
+    		type: "constant"
+    		value: 0
+    	}
+    }
+}
+layer{
+	name: "bn1_up4_hourglass_stage3"
+	type: "BatchNorm"
+	bottom: "elt_low3_hourglass_stage3"
+	top: "bn1_up4_hourglass_stage3"
+	batch_norm_param{
+		use_global_stats: true
+		moving_averaging_fraction: 0.9
+		eps: 1e-5
+	}
+}
+layer{
+	name: "conv1_up4_hourglass_stage3"
+	type: "Convolution"
+	bottom: "bn1_up4_hourglass_stage3"
+	top: "conv1_up4_hourglass_stage3"
+	param{lr_mult: 1 decay_mult: 1}
+	param{lr_mult: 2 decay_mult: 0}
+	convolution_param{
+		num_output: 128 ## nFeat / 2
+		kernel_size: 1
+		stride: 1
+		weight_filler{
+			type: "gaussian"
+			std: 0.01
+		}
+		bias_filler{
+			type: "constant"
+			value: 0
+		}
+	}
+}
+layer{
+	name: "bn2_up4_hourglass_stage3"
+	type: "BatchNorm"
+	bottom: "conv1_up4_hourglass_stage3"
+	top: "bn2_up4_hourglass_stage3"
+	batch_norm_param{
+		use_global_stats: true
+		moving_averaging_fraction: 0.9
+		eps: 1e-5
+	}
+}
+layer{
+	name: "conv2_up4_hourglass_stage3"
+	type: "Convolution"
+	bottom: "bn2_up4_hourglass_stage3"
+	top: "conv2_up4_hourglass_stage3"
+	param{lr_mult: 1 decay_mult: 1}
+	param{lr_mult: 2 decay_mult: 0}
+	convolution_param{
+		num_output: 128 ## nFeat / 2
+		kernel_size: 3
+		stride: 1
+		pad: 1
+		weight_filler{
+			type: "gaussian"
+			std: 0.01
+		}
+		bias_filler{
+			type: "constant"
+			value: 0
+		}
+	}
+}
+layer{
+	name: "bn3_up4_hourglass_stage3"
+	type: "BatchNorm"
+	bottom: "conv2_up4_hourglass_stage3"
+	top: "bn3_up4_hourglass_stage3"
+	batch_norm_param{
+		use_global_stats: true
+		moving_averaging_fraction: 0.9
+		eps: 1e-5
+	}
+}
+layer{
+	name: "conv3_up4_hourglass_stage3"
+	type: "Convolution"
+	bottom: "bn3_up4_hourglass_stage3"
+	top: "conv3_up4_hourglass_stage3"
+	param{lr_mult: 1 decay_mult: 1}
+	param{lr_mult: 2 decay_mult: 0}
+	convolution_param{
+		num_output: 256 ## nFeat
+		kernel_size: 1
+		stride: 1
+		weight_filler{
+			type: "gaussian"
+			std: 0.01
+		}
+		bias_filler{
+			type: "constant"
+			value: 0
+		}
+	}
+}
+layer{
+	name: "elt_up4_hourglass_stage3"
+	type: "Eltwise"
+	bottom: "conv3_up4_hourglass_stage3"
+	bottom: "skip_up4_hourglass_stage3"
+	top: "elt_up4_hourglass_stage3"
+	eltwise_param{
+		operation: SUM
+	}
+}
+##==== low4_hourglass_stage3
+layer{
+	name: "pool_low4_hourglass_stage3"
+	type: "Pooling"
+	bottom: "elt_low3_hourglass_stage3"
+	top: "pool_low4_hourglass_stage3"
+	pooling_param{
+		pool: MAX
+		kernel_size: 2
+		stride: 2
+	}
+}
+layer{
+	name: 'skip_low4_hourglass_stage3'
+	type: "Convolution"
+	bottom: "pool_low4_hourglass_stage3"
+	top: "skip_low4_hourglass_stage3"
+    param { lr_mult: 1 decay_mult: 1 }
+    param { lr_mult: 2 decay_mult: 0 }
+    convolution_param{
+    	num_output: 256 ## nFeat=256
+    	kernel_size: 1
+    	stride: 1
+    	weight_filler{
+    		type: "gaussian"
+    		std: 0.01
+    	}
+    	bias_filler{
+    		type: "constant"
+    		value: 0
+    	}
+    }
+}
+layer{
+	name: "bn1_low4_hourglass_stage3"
+	type: "BatchNorm"
+	bottom: "pool_low4_hourglass_stage3"
+	top: "bn1_low4_hourglass_stage3"
+	batch_norm_param{
+		use_global_stats: true
+		moving_averaging_fraction: 0.9
+		eps: 1e-5
+	}
+}
+layer{
+	name: "conv1_low4_hourglass_stage3"
+	type: "Convolution"
+	bottom: "bn1_low4_hourglass_stage3"
+	top: "conv1_low4_hourglass_stage3"
+	param{lr_mult: 1 decay_mult: 1}
+	param{lr_mult: 2 decay_mult: 0}
+	convolution_param{
+		num_output: 128 ## nFeat / 2
+		kernel_size: 1
+		stride: 1
+		weight_filler{
+			type: "gaussian"
+			std: 0.01
+		}
+		bias_filler{
+			type: "constant"
+			value: 0
+		}
+	}
+}
+layer{
+	name: "bn2_low4_hourglass_stage3"
+	type: "BatchNorm"
+	bottom: "conv1_low4_hourglass_stage3"
+	top: "bn2_low4_hourglass_stage3"
+	batch_norm_param{
+		use_global_stats: true
+		moving_averaging_fraction: 0.9
+		eps: 1e-5
+	}
+}
+layer{
+	name: "conv2_low4_hourglass_stage3"
+	type: "Convolution"
+	bottom: "bn2_low4_hourglass_stage3"
+	top: "conv2_low4_hourglass_stage3"
+	param{lr_mult: 1 decay_mult: 1}
+	param{lr_mult: 2 decay_mult: 0}
+	convolution_param{
+		num_output: 128 ## nFeat / 2
+		kernel_size: 3
+		stride: 1
+		pad: 1
+		weight_filler{
+			type: "gaussian"
+			std: 0.01
+		}
+		bias_filler{
+			type: "constant"
+			value: 0
+		}
+	}
+}
+layer{
+	name: "bn3_low4_hourglass_stage3"
+	type: "BatchNorm"
+	bottom: "conv2_low4_hourglass_stage3"
+	top: "bn3_low4_hourglass_stage3"
+	batch_norm_param{
+		use_global_stats: true
+		moving_averaging_fraction: 0.9
+		eps: 1e-5
+	}
+}
+layer{
+	name: "conv3_low4_hourglass_stage3"
+	type: "Convolution"
+	bottom: "bn3_low4_hourglass_stage3"
+	top: "conv3_low4_hourglass_stage3"
+	param{lr_mult: 1 decay_mult: 1}
+	param{lr_mult: 2 decay_mult: 0}
+	convolution_param{
+		num_output: 256 ## nFeat
+		kernel_size: 1
+		stride: 1
+		weight_filler{
+			type: "gaussian"
+			std: 0.01
+		}
+		bias_filler{
+			type: "constant"
+			value: 0
+		}
+	}
+}
+layer{
+	name: "elt_low4_hourglass_stage3"
+	type: "Eltwise"
+	bottom: "conv3_low4_hourglass_stage3"
+	bottom: "skip_low4_hourglass_stage3"
+	top: "elt_low4_hourglass_stage3"
+	eltwise_param{
+		operation: SUM
+	}
+}
+##==== low4_2_hourglass_stage3
+layer{
+	name: 'skip_low4_2_hourglass_stage3'
+	type: "Convolution"
+	bottom: "elt_low4_hourglass_stage3"
+	top: "skip_low4_2_hourglass_stage3"
+    param { lr_mult: 1 decay_mult: 1 }
+    param { lr_mult: 2 decay_mult: 0 }
+    convolution_param{
+    	num_output: 256 ## nFeat=256
+    	kernel_size: 1
+    	stride: 1
+    	weight_filler{
+    		type: "gaussian"
+    		std: 0.01
+    	}
+    	bias_filler{
+    		type: "constant"
+    		value: 0
+    	}
+    }
+}
+layer{
+	name: "bn1_low4_2_hourglass_stage3"
+	type: "BatchNorm"
+	bottom: "elt_low4_hourglass_stage3"
+	top: "bn1_low4_2_hourglass_stage3"
+	batch_norm_param{
+		use_global_stats: true
+		moving_averaging_fraction: 0.9
+		eps: 1e-5
+	}
+}
+layer{
+	name: "conv1_low4_2_hourglass_stage3"
+	type: "Convolution"
+	bottom: "bn1_low4_2_hourglass_stage3"
+	top: "conv1_low4_2_hourglass_stage3"
+	param{lr_mult: 1 decay_mult: 1}
+	param{lr_mult: 2 decay_mult: 0}
+	convolution_param{
+		num_output: 128 ## nFeat / 2
+		kernel_size: 1
+		stride: 1
+		weight_filler{
+			type: "gaussian"
+			std: 0.01
+		}
+		bias_filler{
+			type: "constant"
+			value: 0
+		}
+	}
+}
+layer{
+	name: "bn2_low4_2_hourglass_stage3"
+	type: "BatchNorm"
+	bottom: "conv1_low4_2_hourglass_stage3"
+	top: "bn2_low4_2_hourglass_stage3"
+	batch_norm_param{
+		use_global_stats: true
+		moving_averaging_fraction: 0.9
+		eps: 1e-5
+	}
+}
+layer{
+	name: "conv2_low4_2_hourglass_stage3"
+	type: "Convolution"
+	bottom: "bn2_low4_2_hourglass_stage3"
+	top: "conv2_low4_2_hourglass_stage3"
+	param{lr_mult: 1 decay_mult: 1}
+	param{lr_mult: 2 decay_mult: 0}
+	convolution_param{
+		num_output: 128 ## nFeat / 2
+		kernel_size: 3
+		stride: 1
+		pad: 1
+		weight_filler{
+			type: "gaussian"
+			std: 0.01
+		}
+		bias_filler{
+			type: "constant"
+			value: 0
+		}
+	}
+}
+layer{
+	name: "bn3_low4_2_hourglass_stage3"
+	type: "BatchNorm"
+	bottom: "conv2_low4_2_hourglass_stage3"
+	top: "bn3_low4_2_hourglass_stage3"
+	batch_norm_param{
+		use_global_stats: true
+		moving_averaging_fraction: 0.9
+		eps: 1e-5
+	}
+}
+layer{
+	name: "conv3_low4_2_hourglass_stage3"
+	type: "Convolution"
+	bottom: "bn3_low4_2_hourglass_stage3"
+	top: "conv3_low4_2_hourglass_stage3"
+	param{lr_mult: 1 decay_mult: 1}
+	param{lr_mult: 2 decay_mult: 0}
+	convolution_param{
+		num_output: 256 ## nFeat
+		kernel_size: 1
+		stride: 1
+		weight_filler{
+			type: "gaussian"
+			std: 0.01
+		}
+		bias_filler{
+			type: "constant"
+			value: 0
+		}
+	}
+}
+layer{
+	name: "elt_low4_2_hourglass_stage3"
+	type: "Eltwise"
+	bottom: "conv3_low4_2_hourglass_stage3"
+	bottom: "skip_low4_2_hourglass_stage3"
+	top: "elt_low4_2_hourglass_stage3"
+	eltwise_param{
+		operation: SUM
+	}
+}
+##==== uplow4_hourglass_stage3
+layer{
+	name: "upSample_uplow4_hourglass_stage3"
+	type: "Deconvolution"
+	bottom: "elt_low4_2_hourglass_stage3"
+	top: "upSample_uplow4_hourglass_stage3"
+	convolution_param{
+		kernel_h: 2
+		kernel_w: 2
+		stride_h: 2
+		stride_w: 2
+		pad_h: 0
+		pad_w: 0
+		num_output: 256
+		group: 256
+		bias_term: false
+		weight_filler{
+			type: "bilinear"
+		}
+	}
+	param{lr_mult: 0 decay_mult: 0}
+}
+layer{
+	name: 'skip_uplow4_hourglass_stage3'
+	type: "Convolution"
+	bottom: "upSample_uplow4_hourglass_stage3"
+	top: "skip_uplow4_hourglass_stage3"
+    param { lr_mult: 1 decay_mult: 1 }
+    param { lr_mult: 2 decay_mult: 0 }
+    convolution_param{
+    	num_output: 256 ## nFeat=256
+    	kernel_size: 1
+    	stride: 1
+    	weight_filler{
+    		type: "gaussian"
+    		std: 0.01
+    	}
+    	bias_filler{
+    		type: "constant"
+    		value: 0
+    	}
+    }
+}
+layer{
+	name: "bn1_uplow4_hourglass_stage3"
+	type: "BatchNorm"
+	bottom: "upSample_uplow4_hourglass_stage3"
+	top: "bn1_uplow4_hourglass_stage3"
+	batch_norm_param{
+		use_global_stats: true
+		moving_averaging_fraction: 0.9
+		eps: 1e-5
+	}
+}
+layer{
+	name: "conv1_uplow4_hourglass_stage3"
+	type: "Convolution"
+	bottom: "bn1_uplow4_hourglass_stage3"
+	top: "conv1_uplow4_hourglass_stage3"
+	param{lr_mult: 1 decay_mult: 1}
+	param{lr_mult: 2 decay_mult: 0}
+	convolution_param{
+		num_output: 128 ## nFeat / 2
+		kernel_size: 1
+		stride: 1
+		weight_filler{
+			type: "gaussian"
+			std: 0.01
+		}
+		bias_filler{
+			type: "constant"
+			value: 0
+		}
+	}
+}
+layer{
+	name: "bn2_uplow4_hourglass_stage3"
+	type: "BatchNorm"
+	bottom: "conv1_uplow4_hourglass_stage3"
+	top: "bn2_uplow4_hourglass_stage3"
+	batch_norm_param{
+		use_global_stats: true
+		moving_averaging_fraction: 0.9
+		eps: 1e-5
+	}
+}
+layer{
+	name: "conv2_uplow4_hourglass_stage3"
+	type: "Convolution"
+	bottom: "bn2_uplow4_hourglass_stage3"
+	top: "conv2_uplow4_hourglass_stage3"
+	param{lr_mult: 1 decay_mult: 1}
+	param{lr_mult: 2 decay_mult: 0}
+	convolution_param{
+		num_output: 128 ## nFeat / 2
+		kernel_size: 3
+		stride: 1
+		pad: 1
+		weight_filler{
+			type: "gaussian"
+			std: 0.01
+		}
+		bias_filler{
+			type: "constant"
+			value: 0
+		}
+	}
+}
+layer{
+	name: "bn3_uplow4_hourglass_stage3"
+	type: "BatchNorm"
+	bottom: "conv2_uplow4_hourglass_stage3"
+	top: "bn3_uplow4_hourglass_stage3"
+	batch_norm_param{
+		use_global_stats: true
+		moving_averaging_fraction: 0.9
+		eps: 1e-5
+	}
+}
+layer{
+	name: "conv3_uplow4_hourglass_stage3"
+	type: "Convolution"
+	bottom: "bn3_uplow4_hourglass_stage3"
+	top: "conv3_uplow4_hourglass_stage3"
+	param{lr_mult: 1 decay_mult: 1}
+	param{lr_mult: 2 decay_mult: 0}
+	convolution_param{
+		num_output: 256 ## nFeat
+		kernel_size: 1
+		stride: 1
+		weight_filler{
+			type: "gaussian"
+			std: 0.01
+		}
+		bias_filler{
+			type: "constant"
+			value: 0
+		}
+	}
+}
+layer{
+	name: "elt_uplow4_hourglass_stage3"
+	type: "Eltwise"
+	bottom: "conv3_uplow4_hourglass_stage3"
+	bottom: "skip_uplow4_hourglass_stage3"
+	top: "elt_uplow4_hourglass_stage3"
+	eltwise_param{
+		operation: SUM
+	}
+}
+
+layer{
+	name: "Elt4_hourglass_stage3"
+	type: "Eltwise"
+	bottom: "elt_uplow4_hourglass_stage3"
+	bottom: "elt_up4_hourglass_stage3"
+	top: "Elt4_hourglass_stage3"
+	eltwise_param{
+		operation: SUM
+	}
+}
+##==== uplow3_hourglass_stage3
+layer{
+	name: "upSample_uplow3_hourglass_stage3"
+	type: "Deconvolution"
+	bottom: "Elt4_hourglass_stage3"
+	top: "upSample_uplow3_hourglass_stage3"
+	convolution_param{
+		kernel_h: 2
+		kernel_w: 2
+		stride_h: 2
+		stride_w: 2
+		pad_h: 0
+		pad_w: 0
+		num_output: 256
+		group: 256
+		bias_term: false
+		weight_filler{
+			type: "bilinear"
+		}
+	}
+	param{lr_mult: 0 decay_mult: 0}
+}
+layer{
+	name: 'skip_uplow3_hourglass_stage3'
+	type: "Convolution"
+	bottom: "upSample_uplow3_hourglass_stage3"
+	top: "skip_uplow3_hourglass_stage3"
+    param { lr_mult: 1 decay_mult: 1 }
+    param { lr_mult: 2 decay_mult: 0 }
+    convolution_param{
+    	num_output: 256 ## nFeat=256
+    	kernel_size: 1
+    	stride: 1
+    	weight_filler{
+    		type: "gaussian"
+    		std: 0.01
+    	}
+    	bias_filler{
+    		type: "constant"
+    		value: 0
+    	}
+    }
+}
+layer{
+	name: "bn1_uplow3_hourglass_stage3"
+	type: "BatchNorm"
+	bottom: "upSample_uplow3_hourglass_stage3"
+	top: "bn1_uplow3_hourglass_stage3"
+	batch_norm_param{
+		use_global_stats: true
+		moving_averaging_fraction: 0.9
+		eps: 1e-5
+	}
+}
+layer{
+	name: "conv1_uplow3_hourglass_stage3"
+	type: "Convolution"
+	bottom: "bn1_uplow3_hourglass_stage3"
+	top: "conv1_uplow3_hourglass_stage3"
+	param{lr_mult: 1 decay_mult: 1}
+	param{lr_mult: 2 decay_mult: 0}
+	convolution_param{
+		num_output: 128 ## nFeat / 2
+		kernel_size: 1
+		stride: 1
+		weight_filler{
+			type: "gaussian"
+			std: 0.01
+		}
+		bias_filler{
+			type: "constant"
+			value: 0
+		}
+	}
+}
+layer{
+	name: "bn2_uplow3_hourglass_stage3"
+	type: "BatchNorm"
+	bottom: "conv1_uplow3_hourglass_stage3"
+	top: "bn2_uplow3_hourglass_stage3"
+	batch_norm_param{
+		use_global_stats: true
+		moving_averaging_fraction: 0.9
+		eps: 1e-5
+	}
+}
+layer{
+	name: "conv2_uplow3_hourglass_stage3"
+	type: "Convolution"
+	bottom: "bn2_uplow3_hourglass_stage3"
+	top: "conv2_uplow3_hourglass_stage3"
+	param{lr_mult: 1 decay_mult: 1}
+	param{lr_mult: 2 decay_mult: 0}
+	convolution_param{
+		num_output: 128 ## nFeat / 2
+		kernel_size: 3
+		stride: 1
+		pad: 1
+		weight_filler{
+			type: "gaussian"
+			std: 0.01
+		}
+		bias_filler{
+			type: "constant"
+			value: 0
+		}
+	}
+}
+layer{
+	name: "bn3_uplow3_hourglass_stage3"
+	type: "BatchNorm"
+	bottom: "conv2_uplow3_hourglass_stage3"
+	top: "bn3_uplow3_hourglass_stage3"
+	batch_norm_param{
+		use_global_stats: true
+		moving_averaging_fraction: 0.9
+		eps: 1e-5
+	}
+}
+layer{
+	name: "conv3_uplow3_hourglass_stage3"
+	type: "Convolution"
+	bottom: "bn3_uplow3_hourglass_stage3"
+	top: "conv3_uplow3_hourglass_stage3"
+	param{lr_mult: 1 decay_mult: 1}
+	param{lr_mult: 2 decay_mult: 0}
+	convolution_param{
+		num_output: 256 ## nFeat
+		kernel_size: 1
+		stride: 1
+		weight_filler{
+			type: "gaussian"
+			std: 0.01
+		}
+		bias_filler{
+			type: "constant"
+			value: 0
+		}
+	}
+}
+layer{
+	name: "elt_uplow3_hourglass_stage3"
+	type: "Eltwise"
+	bottom: "conv3_uplow3_hourglass_stage3"
+	bottom: "skip_uplow3_hourglass_stage3"
+	top: "elt_uplow3_hourglass_stage3"
+	eltwise_param{
+		operation: SUM
+	}
+}
+
+layer{
+	name: "Elt3_hourglass_stage3"
+	type: "Eltwise"
+	bottom: "elt_uplow3_hourglass_stage3"
+	bottom: "elt_up3_hourglass_stage3"
+	top: "Elt3_hourglass_stage3"
+	eltwise_param{
+		operation: SUM
+	}
+}
+
+##==== uplow2_hourglass_stage3
+layer{
+	name: "upSample_uplow2_hourglass_stage3"
+	type: "Deconvolution"
+	bottom: "Elt3_hourglass_stage3"
+	top: "upSample_uplow2_hourglass_stage3"
+	convolution_param {
+		kernel_h: 2
+		kernel_w: 2
+		stride_h: 2
+		stride_w: 2
+		pad_h: 0
+		pad_w: 0
+		num_output: 256
+		group: 256
+		bias_term: false
+		weight_filler {
+		  type: "bilinear"
+		}
+	}
+	param {
+		lr_mult: 0
+		decay_mult: 0
+	}
+}
+layer{
+	name: 'skip_uplow2_hourglass_stage3'
+	type: "Convolution"
+	bottom: "upSample_uplow2_hourglass_stage3"
+	top: "skip_uplow2_hourglass_stage3"
+    param { lr_mult: 1 decay_mult: 1 }
+    param { lr_mult: 2 decay_mult: 0 }
+    convolution_param{
+    	num_output: 256 ## nFeat=256
+    	kernel_size: 1
+    	stride: 1
+    	weight_filler{
+    		type: "gaussian"
+    		std: 0.01
+    	}
+    	bias_filler{
+    		type: "constant"
+    		value: 0
+    	}
+    }
+}
+layer{
+	name: "bn1_uplow2_hourglass_stage3"
+	type: "BatchNorm"
+	bottom: "upSample_uplow2_hourglass_stage3"
+	top: "bn1_uplow2_hourglass_stage3"
+	batch_norm_param{
+		use_global_stats: true
+		moving_averaging_fraction: 0.9
+		eps: 1e-5
+	}
+}
+layer{
+	name: "conv1_uplow2_hourglass_stage3"
+	type: "Convolution"
+	bottom: "bn1_uplow2_hourglass_stage3"
+	top: "conv1_uplow2_hourglass_stage3"
+	param{lr_mult: 1 decay_mult: 1}
+	param{lr_mult: 2 decay_mult: 0}
+	convolution_param{
+		num_output: 128 ## nFeat / 2
+		kernel_size: 1
+		stride: 1
+		weight_filler{
+			type: "gaussian"
+			std: 0.01
+		}
+		bias_filler{
+			type: "constant"
+			value: 0
+		}
+	}
+}
+layer{
+	name: "bn2_uplow2_hourglass_stage3"
+	type: "BatchNorm"
+	bottom: "conv1_uplow2_hourglass_stage3"
+	top: "bn2_uplow2_hourglass_stage3"
+	batch_norm_param{
+		use_global_stats: true
+		moving_averaging_fraction: 0.9
+		eps: 1e-5
+	}
+}
+layer{
+	name: "conv2_uplow2_hourglass_stage3"
+	type: "Convolution"
+	bottom: "bn2_uplow2_hourglass_stage3"
+	top: "conv2_uplow2_hourglass_stage3"
+	param{lr_mult: 1 decay_mult: 1}
+	param{lr_mult: 2 decay_mult: 0}
+	convolution_param{
+		num_output: 128 ## nFeat / 2
+		kernel_size: 3
+		stride: 1
+		pad: 1
+		weight_filler{
+			type: "gaussian"
+			std: 0.01
+		}
+		bias_filler{
+			type: "constant"
+			value: 0
+		}
+	}
+}
+layer{
+	name: "bn3_uplow2_hourglass_stage3"
+	type: "BatchNorm"
+	bottom: "conv2_uplow2_hourglass_stage3"
+	top: "bn3_uplow2_hourglass_stage3"
+	batch_norm_param{
+		use_global_stats: true
+		moving_averaging_fraction: 0.9
+		eps: 1e-5
+	}
+}
+layer{
+	name: "conv3_uplow2_hourglass_stage3"
+	type: "Convolution"
+	bottom: "bn3_uplow2_hourglass_stage3"
+	top: "conv3_uplow2_hourglass_stage3"
+	param{lr_mult: 1 decay_mult: 1}
+	param{lr_mult: 2 decay_mult: 0}
+	convolution_param{
+		num_output: 256 ## nFeat
+		kernel_size: 1
+		stride: 1
+		weight_filler{
+			type: "gaussian"
+			std: 0.01
+		}
+		bias_filler{
+			type: "constant"
+			value: 0
+		}
+	}
+}
+layer{
+	name: "elt_uplow2_hourglass_stage3"
+	type: "Eltwise"
+	bottom: "conv3_uplow2_hourglass_stage3"
+	bottom: "skip_uplow2_hourglass_stage3"
+	top: "elt_uplow2_hourglass_stage3"
+	eltwise_param{
+		operation: SUM
+	}
+}
+
+layer{
+	name: "Elt2_hourglass_stage3"
+	type: "Eltwise"
+	bottom: "elt_uplow2_hourglass_stage3"
+	bottom: "elt_up2_hourglass_stage3"
+	top: "Elt2_hourglass_stage3"
+	eltwise_param{
+		operation: SUM
+	}
+}
+
+##==== uplow1_hourglass_stage3
+layer{
+	name: "upSample_uplow1_hourglass_stage3"
+	type: "Deconvolution"
+	bottom: "Elt2_hourglass_stage3"
+	top: "upSample_uplow1_hourglass_stage3"
+	convolution_param {
+		kernel_h: 2
+		kernel_w: 2
+		stride_h: 2
+		stride_w: 2
+		pad_h: 0
+		pad_w: 0
+		num_output: 256
+		group: 256
+		bias_term: false
+		weight_filler {
+		  type: "bilinear"
+		}
+	}
+	param {
+		lr_mult: 0
+		decay_mult: 0
+	}
+}
+layer{
+	name: 'skip_uplow1_hourglass_stage3'
+	type: "Convolution"
+	bottom: "upSample_uplow1_hourglass_stage3"
+	top: "skip_uplow1_hourglass_stage3"
+    param { lr_mult: 1 decay_mult: 1 }
+    param { lr_mult: 2 decay_mult: 0 }
+    convolution_param{
+    	num_output: 256 ## nFeat=256
+    	kernel_size: 1
+    	stride: 1
+    	weight_filler{
+    		type: "gaussian"
+    		std: 0.01
+    	}
+    	bias_filler{
+    		type: "constant"
+    		value: 0
+    	}
+    }
+}
+layer{
+	name: "bn1_uplow1_hourglass_stage3"
+	type: "BatchNorm"
+	bottom: "upSample_uplow1_hourglass_stage3"
+	top: "bn1_uplow1_hourglass_stage3"
+	batch_norm_param{
+		use_global_stats: true
+		moving_averaging_fraction: 0.9
+		eps: 1e-5
+	}
+}
+layer{
+	name: "conv1_uplow1_hourglass_stage3"
+	type: "Convolution"
+	bottom: "bn1_uplow1_hourglass_stage3"
+	top: "conv1_uplow1_hourglass_stage3"
+	param{lr_mult: 1 decay_mult: 1}
+	param{lr_mult: 2 decay_mult: 0}
+	convolution_param{
+		num_output: 128 ## nFeat / 2
+		kernel_size: 1
+		stride: 1
+		weight_filler{
+			type: "gaussian"
+			std: 0.01
+		}
+		bias_filler{
+			type: "constant"
+			value: 0
+		}
+	}
+}
+layer{
+	name: "bn2_uplow1_hourglass_stage3"
+	type: "BatchNorm"
+	bottom: "conv1_uplow1_hourglass_stage3"
+	top: "bn2_uplow1_hourglass_stage3"
+	batch_norm_param{
+		use_global_stats: true
+		moving_averaging_fraction: 0.9
+		eps: 1e-5
+	}
+}
+layer{
+	name: "conv2_uplow1_hourglass_stage3"
+	type: "Convolution"
+	bottom: "bn2_uplow1_hourglass_stage3"
+	top: "conv2_uplow1_hourglass_stage3"
+	param{lr_mult: 1 decay_mult: 1}
+	param{lr_mult: 2 decay_mult: 0}
+	convolution_param{
+		num_output: 128 ## nFeat / 2
+		kernel_size: 3
+		stride: 1
+		pad: 1
+		weight_filler{
+			type: "gaussian"
+			std: 0.01
+		}
+		bias_filler{
+			type: "constant"
+			value: 0
+		}
+	}
+}
+layer{
+	name: "bn3_uplow1_hourglass_stage3"
+	type: "BatchNorm"
+	bottom: "conv2_uplow1_hourglass_stage3"
+	top: "bn3_uplow1_hourglass_stage3"
+	batch_norm_param{
+		use_global_stats: true
+		moving_averaging_fraction: 0.9
+		eps: 1e-5
+	}
+}
+layer{
+	name: "conv3_uplow1_hourglass_stage3"
+	type: "Convolution"
+	bottom: "bn3_uplow1_hourglass_stage3"
+	top: "conv3_uplow1_hourglass_stage3"
+	param{lr_mult: 1 decay_mult: 1}
+	param{lr_mult: 2 decay_mult: 0}
+	convolution_param{
+		num_output: 256 ## nFeat
+		kernel_size: 1
+		stride: 1
+		weight_filler{
+			type: "gaussian"
+			std: 0.01
+		}
+		bias_filler{
+			type: "constant"
+			value: 0
+		}
+	}
+}
+layer{
+	name: "elt_uplow1_hourglass_stage3"
+	type: "Eltwise"
+	bottom: "conv3_uplow1_hourglass_stage3"
+	bottom: "skip_uplow1_hourglass_stage3"
+	top: "elt_uplow1_hourglass_stage3"
+	eltwise_param{
+		operation: SUM
+	}
+}
+layer{
+	name: "Elt1_hourglass_stage3"
+	type: "Eltwise"
+	bottom: "elt_uplow1_hourglass_stage3"
+	bottom: "elt_up1_hourglass_stage3"
+	top: "Elt1_hourglass_stage3"
+	eltwise_param{
+		operation: SUM
+	}
+}
+
+layer{
+	name: "dropout_hourglass_stage3"
+	type: "Dropout"
+	bottom: "Elt1_hourglass_stage3"
+	top: "dropout_hourglass_stage3"
+	dropout_param{
+		dropout_ratio: 0.2
+	}
+}
+layer{
+	name: "conv1_hourglass_stage3"
+	type: "Convolution"
+	bottom: "dropout_hourglass_stage3"
+	top: "conv1_hourglass_stage3"
+	param{lr_mult: 1 decay_mult: 1}
+	param{lr_mult: 2 decay_mult: 0}
+	convolution_param{
+		num_output: 256 ## nFeat
+		kernel_size: 1
+		stride: 1
+		weight_filler{
+			type: "gaussian"
+			std: 0.01
+		}
+		bias_filler{
+			type: "constant"
+			value: 0
+		}
+	}
+}
+layer{
+	name: "bn1_hourglass_stage3"
+	type: "BatchNorm"
+	bottom: "conv1_hourglass_stage3"
+	top: "bn1_hourglass_stage3"
+	batch_norm_param{
+		use_global_stats: true
+		moving_averaging_fraction: 0.9
+		eps: 1e-5
+	}
+}
+layer{
+	name: "out_hourglass_stage3"
+	type: "Convolution"
+	bottom: "bn1_hourglass_stage3"
+	top: "out_hourglass_stage3"
+	param{lr_mult: 0.00025 decay_rate: 0.96}
+	param{lr_mult: 0 decay_rate: 0}
+	convolution_param{
+		num_output: 16 ## outDim, number of output Dimension (16 for MPII)
+		kernel_size: 1
+		stride: 1
+		weight_filler{
+			type: "gaussian"
+			std: 0.01
+		}
+		bias_filler{
+			type: "constant"
+			value: 0
+		}
+	}
+}
+
+## ============================ Loss =============================
+layer{
+	name: "loss_hourglass_stage0"
+	type: "EuclideanLoss" ## the paper use sigmoid_cross_entropy_with_logit
+	bottom: "out_hourglass_stage0"
+	bottom: "gtMaps"
+	top: "loss_hourglass_stage0"
+	loss_weight: 1
+}
+layer{
+	name: "loss_hourglass_stage1"
+	type: "EuclideanLoss" ## the paper use sigmoid_cross_entropy_with_logit
+	bottom: "out_hourglass_stage1"
+	bottom: "gtMaps"
+	top: "loss_hourglass_stage1"
+	loss_weight: 1
+}
+layer{
+	name: "loss_hourglass_stage2"
+	type: "EuclideanLoss" ## the paper use sigmoid_cross_entropy_with_logit
+	bottom: "out_hourglass_stage2"
+	bottom: "gtMaps"
+	top: "loss_hourglass_stage2"
+	loss_weight: 1
+}
+layer{
+	name: "loss_hourglass_stage3"
+	type: "EuclideanLoss" ## the paper use sigmoid_cross_entropy_with_logit
+	bottom: "out_hourglass_stage3"
+	bottom: "gtMaps"
+	top: "loss_hourglass_stage3"
+	loss_weight: 1
+}

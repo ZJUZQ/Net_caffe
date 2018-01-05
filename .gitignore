@@ -2,3 +2,8 @@
 /cocoapi/results/*
 *.pyc
 .ipynb_checkpoints
+*.json
+*.caffemodel
+*.png
+*.jepg
+*.jpg
