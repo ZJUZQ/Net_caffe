@@ -46,7 +46,7 @@ def evalCOCO(detectImgs, jsonFile, savedImgPath):
         people_cnt = 0 ## detected people count in current image
         for ridxPred in range(len(subset)):
             point = []
-            part_cnt = 0 # joint part couont detected of this people
+            part_cnt = 0 # joint part count detected of this people
             for part in range(18):
                 if part == 1:
                     continue ## pass neck, which is not labeled in coco.json
@@ -278,7 +278,6 @@ def main():
     elif (args.mode == 'MPII'):
         print('MPII detection')
         evalMPII(outFile, savedImgPath)
-
 
 if __name__ == "__main__":
     main()

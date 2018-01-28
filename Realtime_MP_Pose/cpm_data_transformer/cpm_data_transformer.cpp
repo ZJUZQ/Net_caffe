@@ -178,7 +178,7 @@ void CPMDataTransformer<Dtype>::TransformJoints(Joints& j) {
   //transform joints in meta from np_in_lmdb (specified in prototxt) to np (specified in prototxt)
   Joints jo = j;
 
-  if(np == 56){
+  if(np == 56){ // for coco dataset:  np_in_lmdb: 17,   num_parts: 56
     int COCO_to_ours_1[18] = {1,6, 7,9,11, 6,8,10, 13,15,17, 12,14,16, 3,2,5,4}; 
     int COCO_to_ours_2[18] = {1,7, 7,9,11, 6,8,10, 13,15,17, 12,14,16, 3,2,5,4}; 
     jo.joints.resize(np);
@@ -219,7 +219,10 @@ void CPMDataTransformer<Dtype>::TransformJoints(Joints& j) {
   j = jo;
 }
 
-template<typename Dtype> CPMDataTransformer<Dtype>::CPMDataTransformer(const CPMTransformationParameter& param, Phase phase) : param_(param), phase_(phase) {
+template<typename Dtype> 
+CPMDataTransformer<Dtype>::CPMDataTransformer(const CPMTransformationParameter& param, Phase phase) 
+ : param_(param), phase_(phase) 
+{
   // check if we want to use mean_file
   if (param_.has_mean_file()) {
     CHECK_EQ(param_.mean_value_size(), 0) <<
@@ -246,7 +249,8 @@ template<typename Dtype> CPMDataTransformer<Dtype>::CPMDataTransformer(const CPM
   is_table_set = false;
 }
 
-template<typename Dtype> void CPMDataTransformer<Dtype>::Transform(const Datum& datum, Dtype* transformed_data) {
+template<typename Dtype> 
+void CPMDataTransformer<Dtype>::Transform(const Datum& datum, Dtype* transformed_data) {
   //LOG(INFO) << "Function 1 is used";
   const string& data = datum.data();
   const int datum_channels = datum.channels();
@@ -262,7 +266,7 @@ template<typename Dtype> void CPMDataTransformer<Dtype>::Transform(const Datum& 
 
   CHECK_GT(datum_channels, 0);
   CHECK_GE(datum_height, crop_size);
-  CHECK_GE(datum_width, crop_size);
+  CHECK_GE(datum_width, crop_size);v
 
   Dtype* mean = NULL;
   if (has_mean_file) {
@@ -320,7 +324,8 @@ template<typename Dtype> void CPMDataTransformer<Dtype>::Transform(const Datum& 
         if (has_mean_file) {
           transformed_data[top_index] =
             (datum_element - mean[data_index]) * scale;
-        } else {
+        } 
+        else {
           if (has_mean_values) {
             transformed_data[top_index] =
               (datum_element - mean_values_[c]) * scale;
@@ -333,7 +338,8 @@ template<typename Dtype> void CPMDataTransformer<Dtype>::Transform(const Datum& 
   }
 }
 
-template<typename Dtype> void CPMDataTransformer<Dtype>::Transform(const Datum& datum, Blob<Dtype>* transformed_blob) {
+template<typename Dtype> 
+void CPMDataTransformer<Dtype>::Transform(const Datum& datum, Blob<Dtype>* transformed_blob) {
   const int datum_channels = datum.channels();
   const int datum_height = datum.height();
   const int datum_width = datum.width();
@@ -363,7 +369,8 @@ template<typename Dtype> void CPMDataTransformer<Dtype>::Transform(const Datum& 
   Transform(datum, transformed_data);
 }
 
-template<typename Dtype> void CPMDataTransformer<Dtype>::Transform_nv(const Datum& datum, Blob<Dtype>* transformed_data, Blob<Dtype>* transformed_label, int cnt) {
+template<typename Dtype> 
+void CPMDataTransformer<Dtype>::Transform_nv(const Datum& datum, Blob<Dtype>* transformed_data, Blob<Dtype>* transformed_label, int cnt) {
   //std::cout << "Function 2 is used"; std::cout.flush();
   const int datum_channels = datum.channels();
   //const int datum_height = datum.height();
@@ -413,7 +420,8 @@ template<typename Dtype> void CPMDataTransformer<Dtype>::Transform_nv(const Datu
   VLOG(2) << "Transform_nv: " << timer.MicroSeconds() / 1000.0  << " ms";
 }
 
-template<typename Dtype> void CPMDataTransformer<Dtype>::Transform_nv(const Datum& datum, Dtype* transformed_data, Dtype* transformed_label, int cnt) {
+template<typename Dtype> 
+void CPMDataTransformer<Dtype>::Transform_nv(const Datum& datum, Dtype* transformed_data, Dtype* transformed_label, int cnt) {
   
   //TODO: some parameter should be set in prototxt
   int clahe_tileSize = param_.clahe_tile_size();
@@ -721,7 +729,7 @@ template<typename Dtype>
 bool CPMDataTransformer<Dtype>::augmentation_flip(Mat& img_src, Mat& img_aug, Mat& mask_miss, Mat& mask_all, MetaData& meta, int mode) {
   bool doflip;
   if(param_.aug_way() == "rand"){
-    float dice = static_cast <float> (rand()) / static_cast <float> (RAND_MAX);
+    float dice = static_cast <float> (rand()) / static_cast <float> (RAND_MAX); //[0, 1]
     doflip = (dice <= param_.flip_prob());
   }
   else if(param_.aug_way() == "table"){
@@ -1076,7 +1084,7 @@ void CPMDataTransformer<Dtype>::putVecPeaks(Dtype* entryX, Dtype* entryY, Mat& c
         }
       }
     }
-  }
+  } 
 }
 
 

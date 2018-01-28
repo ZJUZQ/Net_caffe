@@ -7,7 +7,10 @@ import math
 import cv2 as cv
 import matplotlib
 
-
+"""
+input: 
+	heatMaps: [H, W, 57] = [heatmap_19; paf_38]
+"""
 def connect56LineVec(imgPath, heatMaps, param, savedImgPath):
 	#thre = 0.05 #0.1 
 	model = param['model'][param['modelID']]
@@ -29,7 +32,6 @@ def connect56LineVec(imgPath, heatMaps, param, savedImgPath):
 		map_up[:,1:] = map[:,:-1]
 		map_down = np.zeros(map.shape)
 		map_down[:,:-1] = map[:,1:]
-
 		## nmp
 		peaks_binary=np.logical_and.reduce((map >= map_left,
 											map >= map_right,

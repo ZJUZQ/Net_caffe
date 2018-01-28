@@ -1,4 +1,5 @@
 import os, sys
+import caffe
 
 def eval_config(id): ## id == 0 for coco, id == 1 for MPII
  
@@ -30,11 +31,33 @@ def eval_config(id): ## id == 0 for coco, id == 1 for MPII
         param['model'][id]['deployFile'] = os.environ['HOME'] + '/Net_caffe/Realtime_MP_Pose/_trained_model/coco/pose_deploy.prototxt'
         param['model'][id]['description'] = 'COCO Pose56 Two-level Linevec'
         param['model'][id]['boxsize'] = 368
+        param['model'][id]['maxsize'] = 480
         param['model'][id]['padValue'] = 128
         param['model'][id]['kpt_num'] = 18 ## without background
         param['model'][id]['stride'] = 8
         
-        ## keypoints order used in openpose
+        ## keypoints order in coco annotation (17 keypoints)
+        """
+        {0, "nose",
+         1, "left_eye",
+         2, "right_eye",
+         3, "left_ear",
+         4, "right_ear", 
+         5, "left_shoulder",
+         6, "right_shoulder",
+         7, "left_elbow",
+         8, "right_elbow",
+         9, "left_wrist",
+         10, "right_wrist",
+         11, "left_hip",
+         12, "right_hip",
+         13, "left_knee",
+         14, "right_knee",
+         15, "left_ankle",
+         16, "right_ankle"]
+        """
+
+        ## keypoints order used in openpose (18 keypoints + background)
         """
         POSE_COCO_BODY_PARTS {
         {0,  "Nose"},
@@ -71,7 +94,7 @@ def eval_config(id): ## id == 0 for coco, id == 1 for MPII
                                           [2,1], [1,15],[15,17],[1,16], 
                                           [16,18], [3,17], [6,18]]
 
-        # the middle joints heatmap correpondence, index of paf in all heatmaps
+        # index of paf in all heatmaps
         param['model'][id]['linkPafIdx'] = [[31,32], [39,40], [33,34], 
                                             [35,36], [41,42], [43,44], 
                                             [19,20], [21,22], [23,24], 

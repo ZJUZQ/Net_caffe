@@ -31,7 +31,13 @@ def applyModel(imgPath, param, net):
 	multiplier = 2**( log(starting_scale, 2):(1/octave):log(ending_scale, 2) )
 	#print 'multiplier = \n', multiplier
 	"""
-	multiplier = [float(x) * boxsize / min(oriImg.shape[0], oriImg.shape[1]) for x in param['scale_search']]
+	#multiplier = [float(x) * boxsize / min(oriImg.shape[0], oriImg.shape[1]) for x in param['scale_search']]
+	multiplier = []
+	for x in param['scale_search']:
+		plier = float(x) * boxsize / min(oriImg.shape[0], oriImg.shape[1])
+		if( plier * max(oriImg.shape[0], oriImg.shape[1]) > model['maxsize'] ):
+			plier = float(model['maxsize']) / max(oriImg.shape[0], oriImg.shape[1])
+		multiplier.append(plier)
 	print( 'multiplier = ', multiplier, '\n' )
 
 	## data container for each scale
@@ -47,7 +53,7 @@ def applyModel(imgPath, param, net):
 		#padImg, pad[m] = padRightDownCorner(imageToTest, model['stride'], model['padValue'])
 
 		padImg, pad = padHeight(resizeImg, model['padValue'], model['stride']); # pad so that height and width is multiples of stride
-		#print 'padImg.shape = ', padImg.shape, '\n'
+		print 'padImg.shape = ', padImg.shape, '\n'
 		imageToTest = normalizeImg(padImg, 0.5)
 
 		if imageToTest.size > 1920*1080*3:
@@ -66,7 +72,6 @@ def applyModel(imgPath, param, net):
 		heatMaps = cv.resize( heatMaps, (oriImg.shape[1], oriImg.shape[0]), interpolation=cv.INTER_CUBIC )
 		#print 'heatMaps.shape (after inverse resize)  = ', heatMaps.shape, '\n'
 
-		
 		heatMaps_all.append(copy.deepcopy(heatMaps))
 
 	heatMaps_avg = np.zeros((oriImg.shape[0], oriImg.shape[1], heatMaps_all[0].shape[2]))
