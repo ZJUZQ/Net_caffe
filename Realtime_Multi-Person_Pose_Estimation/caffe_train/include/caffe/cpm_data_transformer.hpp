@@ -135,6 +135,7 @@ class CPMDataTransformer {
     float degree;
     Size crop;
     float scale;
+    bool flip_updown; //add by zhou
   };
 
   struct Joints {
@@ -184,6 +185,9 @@ class CPMDataTransformer {
   float augmentation_scale(Mat& M, MetaData& meta); // scale to ( target_dist * scale_multiplier )
   Size augmentation_croppad(Mat& M, MetaData& meta); // crop image to Size(crop_x, crop_y)
   float augmentation_tform(Mat& img, Mat& img_temp, Mat &M, MetaData& meta);
+
+  void augmentation_gaussianblur(Mat& img_src); // add by zhou
+  bool augmentation_flipUpdown(Mat& img_src, Mat& img_aug, Mat& mask_miss, Mat& mask_all, MetaData& meta, int mode); // add by zhou
  
   int np_in_lmdb;
   int np;

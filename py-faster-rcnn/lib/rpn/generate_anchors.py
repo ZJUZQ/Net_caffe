@@ -5,6 +5,10 @@
 # Written by Ross Girshick and Sean Bell
 # --------------------------------------------------------
 
+"""
+Generates a regular grid of multi-scale, multi-aspect anchor boxes
+"""
+
 import numpy as np
 
 # Verify that we compute the same anchors as Shaoqing's matlab implementation:

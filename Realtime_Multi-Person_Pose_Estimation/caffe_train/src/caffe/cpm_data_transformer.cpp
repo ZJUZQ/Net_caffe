@@ -43,6 +43,8 @@ string DecodeString(const string& data, size_t idx) {
 template<typename Dtype>
 void CPMDataTransformer<Dtype>::ReadMetaData(MetaData& meta, const string& data, size_t offset3, size_t offset1) { 
   //very specific to genLMDB.py
+  //
+  // offset1 = width
   
   // ------------------- Dataset name ----------------------
   meta.dataset = DecodeString(data, offset3);
@@ -460,7 +462,7 @@ void CPMDataTransformer<Dtype>::Transform_nv(const Datum& datum, Dtype* transfor
   Mat img = Mat::zeros(datum_height, datum_width, CV_8UC3);
   Mat mask_all, mask_miss;
   if(mode >= 5){
-    mask_miss = Mat::ones(datum_height, datum_width, CV_8UC1);
+    mask_miss = Mat::ones(datum_height, datum_width, CV_8UC1); // unlabeled person
   }
   if(mode == 6){
     mask_all = Mat::zeros(datum_height, datum_width, CV_8UC1);
@@ -469,11 +471,12 @@ void CPMDataTransformer<Dtype>::Transform_nv(const Datum& datum, Dtype* transfor
   int offset = img.rows * img.cols;
   int dindex;
   Dtype d_element;
-  for (int i = 0; i < img.rows; ++i) {
+  for (int i = 0; i < img.rows; ++i) 
+  {
     for (int j = 0; j < img.cols; ++j) {
       Vec3b& rgb = img.at<Vec3b>(i, j);
       for(int c = 0; c < 3; c++){
-        dindex = c*offset + i*img.cols + j;
+        dindex = c*offset + i*img.cols + j; // retrive img, data: [img, meta_data, mask_miss, mask_all]
         if (has_uint8)
           d_element = static_cast<Dtype>(static_cast<uint8_t>(data[dindex]));
         else
@@ -482,7 +485,7 @@ void CPMDataTransformer<Dtype>::Transform_nv(const Datum& datum, Dtype* transfor
       }
 
       if(mode >= 5){
-        dindex = 4*offset + i*img.cols + j;
+        dindex = 4*offset + i*img.cols + j; // retrive mask_miss
         if (has_uint8)
           d_element = static_cast<Dtype>(static_cast<uint8_t>(data[dindex]));
         else
@@ -494,7 +497,7 @@ void CPMDataTransformer<Dtype>::Transform_nv(const Datum& datum, Dtype* transfor
       }
 
       if(mode == 6){
-        dindex = 5*offset + i*img.cols + j;
+        dindex = 5*offset + i*img.cols + j; // retrive mask_all
         if (has_uint8)
           d_element = static_cast<Dtype>(static_cast<uint8_t>(data[dindex]));
         else
@@ -519,9 +522,9 @@ void CPMDataTransformer<Dtype>::Transform_nv(const Datum& datum, Dtype* transfor
   int offset3 = 3 * offset;
   int offset1 = datum_width;
   int stride = param_.stride();
-  ReadMetaData(meta, data, offset3, offset1);
+  ReadMetaData(meta, data, offset3, offset1); // retrive meta_data, data: [img, meta_data, mask_miss, mask_all]
   if(param_.transform_body_joint()) // we expect to transform body joints, and not to transform hand joints
-    TransformMetaJoints(meta);
+    TransformMetaJoints(meta); 
 
   VLOG(2) << "  ReadMeta+MetaJoints: " << timer1.MicroSeconds()/1000.0 << " ms";
   timer1.Start();
@@ -556,6 +559,12 @@ void CPMDataTransformer<Dtype>::Transform_nv(const Datum& datum, Dtype* transfor
     as.flip = augmentation_flip(img_temp3, img_aug, mask_miss_aug, mask_all_aug, meta, mode);
     //LOG(INFO) << meta.joint_self.joints.size();
     //LOG(INFO) << meta.joint_self.joints[0];
+    
+    cv::Mat img_tmp4 = img_aug.clone();
+    as.flip_updown = augmentation_flipUpdown(img_tmp4, img_aug, mask_miss_aug, mask_all_aug, meta, mode);
+    
+    augmentation_gaussianblur(img_aug);
+
     if(param_.visualize()) 
       visualize(img_aug, meta, as);
 
@@ -607,7 +616,7 @@ void CPMDataTransformer<Dtype>::Transform_nv(const Datum& datum, Dtype* transfor
       for (int g_x = 0; g_x < grid_x; g_x++){
         for (int i = 0; i < np; i++){
           float weight = float(mask_miss_aug.at<uchar>(g_y, g_x)) /255; //mask_miss_aug.at<uchar>(i, j); 
-          if (meta.joint_self.isVisible[i] != 3){
+          if (meta.joint_self.isVisible[i] != 3){ // joint_self: [np, 3]
             transformed_label[i*channelOffset + g_y*grid_x + g_x] = weight;
           }
         }  
@@ -649,7 +658,7 @@ float CPMDataTransformer<Dtype>::augmentation_scale(Mat& img_src, Mat& img_temp,
     float dice2 = static_cast <float> (rand()) / static_cast <float> (RAND_MAX); //[0,1]
     scale_multiplier = (param_.scale_max() - param_.scale_min()) * dice2 + param_.scale_min(); //linear shear into [scale_min, scale_max]
   }
-  float scale_abs = param_.target_dist()/meta.scale_self; // e.g., target_dist: 0.6
+  float scale_abs = param_.target_dist()/meta.scale_self; // e.g., target_dist: 0.6, scale_self = annsImage[i]['annorect'][p]['bbox'][3] / 368.0
   float scale = scale_abs * scale_multiplier;
   resize(img_src, img_temp, Size(), scale, scale, INTER_CUBIC);
   if(mode>4){
@@ -726,6 +735,52 @@ Size CPMDataTransformer<Dtype>::augmentation_croppad(Mat& img_src, Mat& img_dst,
   return Size(x_offset, y_offset);
 }
 
+// augmentation_flipUpdown, add by zhou
+template<typename Dtype>
+bool CPMDataTransformer<Dtype>::augmentation_flipUpdown(Mat& img_src, Mat& img_aug, Mat& mask_miss, Mat& mask_all, MetaData& meta, int mode) {
+  bool doflip;
+  if(param_.aug_way() == "rand"){ // default
+    float dice = static_cast <float> (rand()) / static_cast <float> (RAND_MAX);
+    doflip = (dice <= param_.flip_prob());
+  }
+  else {
+    doflip = 0;
+    LOG(INFO) << "Unhandled exception!!!!!!";
+  }
+  
+  if(doflip)
+  {
+    flip(img_src, img_aug, 0); // flip updown
+    int h = img_src.rows;
+    if(mode>4){
+      flip(mask_miss, mask_miss, 0);
+    }
+    if(mode>5){
+      flip(mask_all, mask_all, 0);
+    }
+    meta.objpos.y = h - 1 - meta.objpos.y;
+    for(int i=0; i<np; i++){
+      meta.joint_self.joints[i].y = h - 1 - meta.joint_self.joints[i].y;
+    }
+    if(param_.transform_body_joint())
+      swapLeftRight(meta.joint_self);
+
+    for(int p=0; p<meta.numOtherPeople; p++){
+      meta.objpos_other[p].y = h - 1 - meta.objpos_other[p].y;
+      for(int i=0; i<np; i++){
+        meta.joint_others[p].joints[i].y = h - 1 - meta.joint_others[p].joints[i].y;
+      }
+      if(param_.transform_body_joint())
+        swapLeftRight(meta.joint_others[p]);
+    }
+  }
+  else {
+    img_aug = img_src.clone();
+  }
+  return doflip;
+}
+
+
 template<typename Dtype>
 bool CPMDataTransformer<Dtype>::augmentation_flip(Mat& img_src, Mat& img_aug, Mat& mask_miss, Mat& mask_all, MetaData& meta, int mode) {
   bool doflip;
@@ -772,11 +827,27 @@ bool CPMDataTransformer<Dtype>::augmentation_flip(Mat& img_src, Mat& img_aug, Ma
   return doflip;
 }
 
+// augmentation_gaussianblur, add by zhou
+template<typename Dtype>
+void CPMDataTransformer<Dtype>::augmentation_gaussianblur(Mat& img_src) {
+  
+  //printf("use augmentation_gaussianblur \n\n");
+  if(static_cast<float>(rand()) / static_cast<float>(RAND_MAX) > 0.5){
+    return;
+  }
+
+  int ksize = (static_cast<int>(rand()) % 4) * 2 + 1; // [1, 3, 5, 7]
+  float sigma = 0.3 * ((ksize - 1) * 0.5 - 1) + 0.8;
+
+  cv::GaussianBlur(img_src, img_src, cv::Size(ksize, ksize), sigma, sigma);
+}
+// end
+
 template<typename Dtype>
 float CPMDataTransformer<Dtype>::augmentation_rotate(Mat& img_src, Mat& img_dst, Mat& mask_miss, Mat& mask_all, MetaData& meta, int mode) {
   
   float degree;
-  if(param_.aug_way() == "rand"){
+  if(param_.aug_way() == "rand"){ // default
     float dice = static_cast <float> (rand()) / static_cast <float> (RAND_MAX);
     degree = (dice - 0.5) * 2 * param_.max_rotate_degree(); // [-max_rotate_degree, max_rotate_degree]
   }
@@ -1299,11 +1370,12 @@ void CPMDataTransformer<Dtype>::generateLabelMap(Dtype* transformed_label, Mat& 
 
   /*
   np = 56 = (18 + 19x2) for coco
-  [0, np-1] * grid_y * grid_x       :     weight (np)
-  np * grid_y * grid_x              :     backaground (1)
-  [np+1, np+38] * grid_y * grid_x   :     vecMaps (19x2)
-  [np+39, np+56] * grid_y * grid_x  :     GaussianMaps (18)
-  (2*np+1) * grid_y * grid_x        :     background
+
+  [0, np-1]       * grid_y * grid_x       :     weight (np)
+  np              * grid_y * grid_x              :     backaground (1)
+  [np+1, np+38]   * grid_y * grid_x   :     vecMaps (19x2)
+  [np+39, np+56]  * grid_y * grid_x  :     GaussianMaps (18)
+  (2*np+1)        * grid_y * grid_x        :     background
    */
 
   //visualize

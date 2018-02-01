@@ -5,6 +5,12 @@
 # Written by Ross Girshick and Sean Bell
 # --------------------------------------------------------
 
+"""
+Generates training targets/labels for each anchor. Classification labels are 1 (object), 
+0 (not object) or -1 (ignore). Bbox regression targets are specified when the classification 
+label is > 0.
+"""
+
 import os
 import caffe
 import yaml
@@ -53,13 +59,13 @@ class AnchorTargetLayer(caffe.Layer):
             print 'AnchorTargetLayer: height', height, 'width', width
 
         A = self._num_anchors
-        # labels
+        # rpn_labels
         top[0].reshape(1, 1, A * height, width)
-        # bbox_targets
+        # rpn_bbox_targets
         top[1].reshape(1, A * 4, height, width)
-        # bbox_inside_weights
+        # rpn_bbox_inside_weights
         top[2].reshape(1, A * 4, height, width)
-        # bbox_outside_weights
+        # rpn_bbox_outside_weights
         top[3].reshape(1, A * 4, height, width)
 
     def forward(self, bottom, top):
@@ -93,8 +99,8 @@ class AnchorTargetLayer(caffe.Layer):
         shift_x = np.arange(0, width) * self._feat_stride
         shift_y = np.arange(0, height) * self._feat_stride
         shift_x, shift_y = np.meshgrid(shift_x, shift_y)
-        shifts = np.vstack((shift_x.ravel(), shift_y.ravel(),
-                            shift_x.ravel(), shift_y.ravel())).transpose()
+        shifts = np.vstack( (shift_x.ravel(), shift_y.ravel(),
+                             shift_x.ravel(), shift_y.ravel()) ).transpose()
         # add A anchors (1, A, 4) to
         # cell K shifts (K, 1, 4) to get
         # shift anchors (K, A, 4)
@@ -134,6 +140,7 @@ class AnchorTargetLayer(caffe.Layer):
             np.ascontiguousarray(gt_boxes, dtype=np.float))
         argmax_overlaps = overlaps.argmax(axis=1)
         max_overlaps = overlaps[np.arange(len(inds_inside)), argmax_overlaps]
+        
         gt_argmax_overlaps = overlaps.argmax(axis=0)
         gt_max_overlaps = overlaps[gt_argmax_overlaps,
                                    np.arange(overlaps.shape[1])]

@@ -15,6 +15,7 @@ from utils.blob import prep_im_for_blob, im_list_to_blob
 
 def get_minibatch(roidb, num_classes):
     """Given a roidb, construct a minibatch sampled from it."""
+
     num_images = len(roidb)
     # Sample random scales to use for each image in this batch
     random_scale_inds = npr.randint(0, high=len(cfg.TRAIN.SCALES),
@@ -22,6 +23,8 @@ def get_minibatch(roidb, num_classes):
     assert(cfg.TRAIN.BATCH_SIZE % num_images == 0), \
         'num_images ({}) must divide BATCH_SIZE ({})'. \
         format(num_images, cfg.TRAIN.BATCH_SIZE)
+
+    """cfg.TRAIN.BATCH_SIZE: Minibatch size (number of regions of interest [ROIs])"""
     rois_per_image = cfg.TRAIN.BATCH_SIZE / num_images
     fg_rois_per_image = np.round(cfg.TRAIN.FG_FRACTION * rois_per_image)
 
@@ -30,7 +33,7 @@ def get_minibatch(roidb, num_classes):
 
     blobs = {'data': im_blob}
 
-    if cfg.TRAIN.HAS_RPN:
+    if cfg.TRAIN.HAS_RPN: ## use rpn, for faster rcnn
         assert len(im_scales) == 1, "Single batch only"
         assert len(roidb) == 1, "Single batch only"
         # gt boxes: (x1, y1, x2, y2, cls)
@@ -41,8 +44,9 @@ def get_minibatch(roidb, num_classes):
         blobs['gt_boxes'] = gt_boxes
         blobs['im_info'] = np.array(
             [[im_blob.shape[2], im_blob.shape[3], im_scales[0]]],
-            dtype=np.float32)
-    else: # not using RPN
+            dtype=np.float32) ## h, w, scale
+    
+    else: # not using RPN, for fast rcnn
         # Now, build the region of interest and label blobs
         rois_blob = np.zeros((0, 5), dtype=np.float32)
         labels_blob = np.zeros((0), dtype=np.float32)
@@ -80,6 +84,7 @@ def get_minibatch(roidb, num_classes):
 
     return blobs
 
+## for not use rpn
 def _sample_rois(roidb, fg_rois_per_image, rois_per_image, num_classes):
     """Generate a random sample of RoIs comprising foreground and background
     examples.
@@ -127,8 +132,9 @@ def _sample_rois(roidb, fg_rois_per_image, rois_per_image, num_classes):
     return labels, overlaps, rois, bbox_targets, bbox_inside_weights
 
 def _get_image_blob(roidb, scale_inds):
-    """Builds an input blob from the images in the roidb at the specified
-    scales.
+    """Builds an input blob from the images in the roidb at the specified scales.
+
+    #  Get the input image blob, formatted for caffe
     """
     num_images = len(roidb)
     processed_ims = []
@@ -139,23 +145,24 @@ def _get_image_blob(roidb, scale_inds):
             im = im[:, ::-1, :]
         target_size = cfg.TRAIN.SCALES[scale_inds[i]]
         im, im_scale = prep_im_for_blob(im, cfg.PIXEL_MEANS, target_size,
-                                        cfg.TRAIN.MAX_SIZE)
+                                        cfg.TRAIN.MAX_SIZE) ## Mean subtract and scale an image for use in a blob
         im_scales.append(im_scale)
         processed_ims.append(im)
 
     # Create a blob to hold the input images
-    blob = im_list_to_blob(processed_ims)
+    blob = im_list_to_blob(processed_ims) ## Convert a list of images into a network input
 
     return blob, im_scales
 
+## for not use RPN
 def _project_im_rois(im_rois, im_scale_factor):
     """Project image RoIs into the rescaled training image."""
     rois = im_rois * im_scale_factor
     return rois
 
+## for not use RPN
 def _get_bbox_regression_labels(bbox_target_data, num_classes):
-    """Bounding-box regression targets are stored in a compact form in the
-    roidb.
+    """Bounding-box regression targets are stored in a compact form in the roidb.
 
     This function expands those targets into the 4-of-4*K representation used
     by the network (i.e. only one class has non-zero targets). The loss weights

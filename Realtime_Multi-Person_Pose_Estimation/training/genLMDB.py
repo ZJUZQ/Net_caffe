@@ -38,8 +38,8 @@ def writeLMDB(datasets, lmdb_path, validation):
 
 	random_order = np.random.permutation(numSample).tolist() ## Randomly permute a sequence, or return a permuted range
 	
-	isValidationArray = [data[i]['isValidation'] for i in range(numSample)];
-	if(validation == 1):
+	isValidationArray = [data[i]['isValidation'] for i in range(numSample)]; ## validation is used for self validate
+	if(validation == 1):  ## totalWriteCount exclude validation
 		totalWriteCount = isValidationArray.count(0.0); ## number of 0 in isValidationArray
 	else:
 		totalWriteCount = len(data)
@@ -87,18 +87,21 @@ def writeLMDB(datasets, lmdb_path, validation):
 		meta_data = np.zeros(shape=(height,width,1), dtype=np.uint8)
 		#print type(img), img.shape
 		#print type(meta_data), meta_data.shape
-		clidx = 0 # current line index
+		
+		clidx = 0 # current line index, or row index of meta_data
 		# dataset name (string)
 		for i in range(len(data[idx]['dataset'])):
 			meta_data[clidx][i] = ord(data[idx]['dataset'][i])
+
 		clidx = clidx + 1
 		# image height, image width
 		height_binary = float2bytes(data[idx]['img_height'])
 		for i in range(len(height_binary)):
-			meta_data[clidx][i] = ord(height_binary[i])
+			meta_data[clidx][i] = ord(height_binary[i]) ## Given a string of length one, return an integer representing the Unicode code point of the character when the argument is a unicode object, or the value of the byte when the argument is an 8-bit string.
 		width_binary = float2bytes(data[idx]['img_width'])
 		for i in range(len(width_binary)):
 			meta_data[clidx][4+i] = ord(width_binary[i])
+
 		clidx = clidx + 1
 		# (a) isValidation(uint8), numOtherPeople (uint8), people_index (uint8), annolist_index (float), writeCount(float), totalWriteCount(float)
 		meta_data[clidx][0] = data[idx]['isValidation']
@@ -114,16 +117,19 @@ def writeLMDB(datasets, lmdb_path, validation):
 		for i in range(len(totalWriteCount_binary)):
 			meta_data[clidx][11+i] = ord(totalWriteCount_binary[i])
 		nop = int(data[idx]['numOtherPeople'])
+
 		clidx = clidx + 1
 		# (b) objpos_x (float), objpos_y (float)
 		objpos_binary = float2bytes(data[idx]['objpos'])
 		for i in range(len(objpos_binary)):
 			meta_data[clidx][i] = ord(objpos_binary[i])
+
 		clidx = clidx + 1
 		# (c) scale_provided (float)
 		scale_provided_binary = float2bytes(data[idx]['scale_provided'])
 		for i in range(len(scale_provided_binary)):
 			meta_data[clidx][i] = ord(scale_provided_binary[i])
+
 		clidx = clidx + 1
 		# (d) joint_self (3*16) (float) (3 line)
 		joints = np.asarray(data[idx]['joint_self']).T.tolist() # transpose to 3*16
@@ -132,6 +138,7 @@ def writeLMDB(datasets, lmdb_path, validation):
 			for j in range(len(row_binary)):
 				meta_data[clidx][j] = ord(row_binary[j])
 			clidx = clidx + 1
+
 		# (e) check nop, prepare arrays
 		if(nop!=0):
 			if(nop==1):
@@ -173,9 +180,14 @@ def writeLMDB(datasets, lmdb_path, validation):
 		img4ch = np.transpose(img4ch, (2, 0, 1))
 		print img4ch.shape
 		
-		datum = caffe.io.array_to_datum(img4ch, label=0)
+		"""
+		Converts a 3-dimensional array to datum. If the array has dtype uint8,
+		the output data will be encoded as a string. Otherwise, the output data
+		will be stored in float format
+		"""
+		datum = caffe.io.array_to_datum(img4ch, label=0) 
 		key = '%07d' % writeCount
-		txn.put(key, datum.SerializeToString())
+		txn.put(key, datum.SerializeToString()) ## txn.put(): Store a record, returning True if it was written, or False to indicate the key was already present and overwrite=False. On success, the cursor is positioned on the new record.
 		if(writeCount % 1000 == 0):
 			txn.commit()
 			txn = env.begin(write=True)
@@ -188,8 +200,9 @@ def writeLMDB(datasets, lmdb_path, validation):
 def float2bytes(floats):
 	if type(floats) is float:
 		floats = [floats]
-	return struct.pack('%sf' % len(floats), *floats)
+	return struct.pack('%sf' % len(floats), *floats) ## '3f' == 'fff'; Return a string containing the values v1, v2, ... packed according to the given format. The arguments must match the values required by the format exactly
 
 if __name__ == "__main__":
 	#writeLMDB(['MPI'], '/home/zhecao/MPI_pose/lmdb', 1)
-	writeLMDB(['COCO'], '/home/zhecao/COCO_kpt/lmdb', 1)
+	writeLMDB(['COCO'], '/home/zhecao/COCO_kpt/lmdb', 1) 
+

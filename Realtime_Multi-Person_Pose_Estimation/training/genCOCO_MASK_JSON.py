@@ -27,7 +27,6 @@ def annsTransform(datasetRootPath, annFile):
 	p_index = 0 					## index of people in a image
 	image_index = -1 				## index of image
 
-
 	for i in range(0, len(anns)):
 		print('annsTransform: %d / %d'%(i, len(anns)))
 		imgId_curr = anns[i]['image_id']
@@ -61,8 +60,8 @@ def annsTransform(datasetRootPath, annFile):
 		"""
 		anns_image[image_index]['annorect'][p_index]['keypoints'] = anns[i]['keypoints'] 			## [x1, y1, v1, ...]
 		anns_image[image_index]['annorect'][p_index]['num_keypoints'] = anns[i]['num_keypoints'] 	## int
-		anns_image[image_index]['annorect'][p_index]['img_width'] = coco.loadImgs(imgId_curr).width
-		anns_image[image_index]['annorect'][p_index]['img_height'] = coco.loadImgs(imgId_curr).height
+		anns_image[image_index]['annorect'][p_index]['img_width'] = coco.loadImgs(imgId_curr)[0]['width']
+		anns_image[image_index]['annorect'][p_index]['img_height'] = coco.loadImgs(imgId_curr)[0]['height']
 
 		imgId_prev = imgId_curr
 
@@ -81,9 +80,10 @@ def writeCOCOMask(coco, annsImage, dataType, year, datasetRootPath):
 		img_name2 = 'dataset/COCO/mask{0}/{1}_mask_miss_{2:012d}.png'.format(year, dataType, annsImage[i]['image_id'])
 	
 		print('%d / %d' %(i, len(annsImage)))
-		mat1 = cv2.imread(datasetRootPath+img_name1)
-		mat2 = cv2.imread(datasetRootPath+img_name2)
-		if(mat1 != NULL and mat2 != NULL):
+		#mat1 = cv2.imread(datasetRootPath+img_name1)
+		#mat2 = cv2.imread(datasetRootPath+img_name2)
+		##if(mat1 != NULL and mat2 != NULL):
+		if(os.path.isfile(datasetRootPath+img_name1) and os.path.isfile(datasetRootPath+img_name2)):
 			continue ## check whether image: img_name1 and img_name2 alerady exist
 		else: 
 			## cv2.imread() cannot read img_name1 or img_name2
@@ -105,7 +105,10 @@ def writeCOCOMask(coco, annsImage, dataType, year, datasetRootPath):
 				
 				X, Y = np.meshgrid(range(w), range(h))
 				X, Y = X.flatten(), Y.flatten()
-				points = np.vstack((X, Y)).T 
+				points = np.vstack((X, Y)).T
+				polygon = np.array(list(polygon))
+				polygon = polygon.reshape((-1, 2)) ## with shape Nx2
+				#print polygon
 				path = Path(polygon)
 				mask = path.contains_points(points)
 				mask = mask.reshape(h, w) ## binary array
@@ -125,11 +128,24 @@ def writeCOCOMask(coco, annsImage, dataType, year, datasetRootPath):
 			annsImage[i]['mask_miss'] = mask_miss 
 
 			img_name = 'dataset/COCO/mask{0}/{1}_maks_all_{2:012d}.png'.format(year, dataType, annsImage[i]['image_id'])
-			cv2.imwrite(datasetRootPath+img_name, mask_all)
+			cv2.imwrite(datasetRootPath+img_name, np.array(mask_all, dtype=np.uint8))
 			img_name = 'dataset/COCO/maks{0}/{1}_mask_miss_{2:012d}.png'.format(year, dataType, annsImage[i]['image_id'])
-			cv2.imwrite(datasetRootPath+img_name, mask_miss)
+			cv2.imwrite(datasetRootPath+img_name, np.array(mask_miss, dtype=np.uint8))
 
 	return annsImage
+
+def getValidationImageIds(annsImage, dataType, validationFile):
+	validationImageFile = open(validationFile, 'w')
+	for i in range(len(annsImage)):
+		if(dataType == 'val2014'):
+			if i < 2645:
+
+				validationImageFile.write('COCO_{0}_{1:012d}.jpg\n'.format(dataType, annsImage[i]['image_id']))
+			else:
+				validationImageFile.close()
+				break
+		else:
+			break
 
 ## generate new annotation json file for cpm training
 def genJSON(annsImage, dataType, datasetRootPath):
@@ -143,6 +159,7 @@ def genJSON(annsImage, dataType, datasetRootPath):
 	isValidation = 0
 	joint_all = [{}]
 	count = 0
+	
 
 	for i in range(len(annsImage)):
 		numPeople = len(annsImage[i]['annorect'])
@@ -153,7 +170,7 @@ def genJSON(annsImage, dataType, datasetRootPath):
 			if i < 2645:
 				validationCount = validationCount + 1 
 				print('My validation! %d/2644\n' %i)
-				isValidation = 1
+				isValidation = 1	
 			else:
 				isValidation = 0 
 		else:
@@ -215,10 +232,10 @@ def genJSON(annsImage, dataType, datasetRootPath):
 			count_other = 0
 			joint_all[count]['scale_provided_other'] = []
 			joint_all[count]['objpos_other'] = []
-			joint_all[count]['bbox_other']
-			joint_all[count]['segment_area_other']
-			joint_all[count]['num_keypoints_other']
-			joint_all[count]['joint_others']
+			joint_all[count]['bbox_other'] = []
+			joint_all[count]['segment_area_other'] = []
+			joint_all[count]['num_keypoints_other'] = []
+			joint_all[count]['joint_others'] = []
 
 			for op in range(numPeople):
 				if (op == p or annsImage[i]['annorect'][op]['num_keypoints'] == 0):
@@ -250,6 +267,7 @@ def genJSON(annsImage, dataType, datasetRootPath):
 
 			prev_center.append( joint_all[count]['objpos'] + [max(annsImage[i]['annorect'][p]['bbox'][2], annsImage[i]['annorect'][p]['bbox'][3])] )
 			count = count + 1
+			
 	json_data = json.dumps(joint_all)
 	fileWriter = open(datasetRootPath+'dataset/COCO/json/COCO.json', 'wb')
 	fileWriter.write(json_data)
@@ -264,11 +282,19 @@ if __name__ == "__main__":
 	args = parser.parse_args()
 	annFile = 'dataset/COCO/annotations/{}_{}.json'.format(args.annType, args.dataType)
 
-	os.mkdir(args.datasetRootPath+'dataset/COCO/mask2014', 0777) ## store generated mask_full and mask_miss
-	os.mkdir(args.datasetRootPath+'dataset/COCO/json', 0777) ### store transformed json file (contain raw informations needed for training)
+	if(os.path.exists(args.datasetRootPath+'dataset/COCO/mask2014')):
+		pass
+	else:
+		os.mkdir(args.datasetRootPath+'dataset/COCO/mask2014', 0777) ## store generated mask_full and mask_miss
+	if(os.path.exists(args.datasetRootPath+'dataset/COCO/json')):
+		pass
+	else:
+		os.mkdir(args.datasetRootPath+'dataset/COCO/json', 0777) ### store transformed json file (contain raw informations needed for training)
 	sys.path.insert(0, args.datasetRootPath+'dataset/COCO/coco/PythonAPI/')
 
 	coco, annsImage =  annsTransform(args.datasetRootPath, annFile)
+
+	#getValidationImageIds(annsImage, args.dataType, 'validationImageFile.txt')
 
 	annsImage = writeCOCOMask(coco, annsImage, args.dataType, args.year, args.datasetRootPath)
 

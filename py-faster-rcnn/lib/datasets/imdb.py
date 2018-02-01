@@ -52,7 +52,7 @@ class imdb(object):
         self._roidb_handler = val
 
     def set_proposal_method(self, method):
-        method = eval('self.' + method + '_roidb')
+        method = eval('self.' + method + '_roidb') ## eval() 函数用来执行一个字符串表达式，并返回表达式的值
         self.roidb_handler = method
 
     @property

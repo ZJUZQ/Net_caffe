@@ -5,6 +5,12 @@
 # Written by Ross Girshick and Sean Bell
 # --------------------------------------------------------
 
+"""
+Generates training targets/labels for each object proposal: classification labels 0 - K 
+(bg or object class 1, ... , K)
+and bbox regression targets in that case that the label is > 0
+"""
+
 import caffe
 import yaml
 import numpy as np

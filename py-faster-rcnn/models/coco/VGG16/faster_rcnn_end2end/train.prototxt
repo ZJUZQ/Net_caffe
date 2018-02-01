@@ -1,3 +1,9 @@
+## Python layers:
+##    roi_data_layer.layer
+##    rpn.anchor_target_layer
+##    rpn.proposal_layer
+##    rpn.proposal_target_layer
+
 name: "VGG_ILSVRC_16_layers"
 layer {
   name: 'input-data'

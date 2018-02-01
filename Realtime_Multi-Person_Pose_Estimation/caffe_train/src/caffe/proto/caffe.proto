@@ -480,6 +480,7 @@ message CPMTransformationParameter {
   optional uint32 gray = 34 [default = 0];
   optional uint32 np_in_lmdb = 35 [default = 16];
   optional bool transform_body_joint = 38 [default = true];
+  optional bool do_flip_updown = 40 [default = false]; // add by zhou
 }
 
 // Message that stores parameters shared by loss layers

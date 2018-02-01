@@ -30,19 +30,19 @@ def parse_args():
                         default=0, type=int)
     parser.add_argument('--solver', dest='solver',
                         help='solver prototxt',
-                        default=None, type=str)
+                        default=None, type=str)     ## e.g., models/coco/VGG16/faster_rcnn_end2end/solver.prototxt
     parser.add_argument('--iters', dest='max_iters',
                         help='number of iterations to train',
                         default=40000, type=int)
     parser.add_argument('--weights', dest='pretrained_model',
                         help='initialize with pretrained model weights',
-                        default=None, type=str)
+                        default=None, type=str)     ## e.g., data/imagenet_models/VGG16.v2.caffemodel
     parser.add_argument('--cfg', dest='cfg_file',
                         help='optional config file',
-                        default=None, type=str)
+                        default=None, type=str)     ## e.g., experiments/cfgs/faster_rcnn_end2end.yml
     parser.add_argument('--imdb', dest='imdb_name',
                         help='dataset to train on',
-                        default='voc_2007_trainval', type=str)
+                        default='voc_2007_trainval', type=str) ## e.g., coco_2014_train+coco_2014_valminusminival
     parser.add_argument('--rand', dest='randomize',
                         help='randomize (do not use a fixed seed)',
                         action='store_true')
@@ -59,11 +59,13 @@ def parse_args():
 
 def combined_roidb(imdb_names):
     def get_roidb(imdb_name):
-        imdb = get_imdb(imdb_name)
+        imdb = get_imdb(imdb_name) ## coco(split, year)
         print 'Loaded dataset `{:s}` for training'.format(imdb.name)
-        imdb.set_proposal_method(cfg.TRAIN.PROPOSAL_METHOD)
+
+        imdb.set_proposal_method(cfg.TRAIN.PROPOSAL_METHOD) ## gt, set on faster_rcnn_end2end.yaml
         print 'Set proposal method: {:s}'.format(cfg.TRAIN.PROPOSAL_METHOD)
-        roidb = get_training_roidb(imdb)
+        
+        roidb = get_training_roidb(imdb) 
         return roidb
 
     roidbs = [get_roidb(s) for s in imdb_names.split('+')]

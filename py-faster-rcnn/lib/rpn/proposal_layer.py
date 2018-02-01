@@ -5,6 +5,10 @@
 # Written by Ross Girshick and Sean Bell
 # --------------------------------------------------------
 
+"""
+Converts RPN outputs (per-anchor scores and bbox regression estimates) into object proposals
+"""
+
 import caffe
 import numpy as np
 import yaml

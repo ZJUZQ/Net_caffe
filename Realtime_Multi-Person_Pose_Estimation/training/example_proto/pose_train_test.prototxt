@@ -2,7 +2,7 @@ layer {
   name: "data"
   type: "CPMData"
   top: "data"
-  top: "label"
+  top: "label"        ## 2*(num_parts+1)
   data_param {
     source: "/home/zhecao/COCO_kpt/lmdb_trainVal"
     batch_size: 10
@@ -20,6 +20,7 @@ layer {
     target_dist: 0.6
     center_perterb_max: 40
     do_clahe: false
+    do_flip_updown: false
     num_parts: 56
     np_in_lmdb: 17
   }
@@ -28,10 +29,10 @@ layer {
   name: "vec_weight"
   type: "Slice"
   bottom: "label"
-  top: "vec_weight"
-  top: "heat_weight"
-  top: "vec_temp"
-  top: "heat_temp"
+  top: "vec_weight"   ## [0, 38)
+  top: "heat_weight"  ## [38, 57)
+  top: "vec_temp"     ## [57, 95)
+  top: "heat_temp"    ## [95, 114)
   slice_param {
     slice_point: 38
     slice_point: 57
@@ -75,6 +76,7 @@ layer {
   type: "Silence"
   bottom: "center_map"
 }
+
 layer {
   name: "conv1_1"
   type: "Convolution"

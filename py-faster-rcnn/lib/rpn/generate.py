@@ -11,6 +11,10 @@ from utils.timer import Timer
 import numpy as np
 import cv2
 
+"""
+Generate object detection proposals from an imdb using an RPN
+"""
+
 def _vis_proposals(im, dets, thresh=0.5):
     """Draw detected bounding boxes."""
     inds = np.where(dets[:, -1] >= thresh)[0]
@@ -65,7 +69,7 @@ def _get_image_blob(im):
     processed_ims = []
 
     assert len(cfg.TEST.SCALES) == 1
-    target_size = cfg.TEST.SCALES[0]
+    target_size = cfg.TEST.SCALES[0] ## Scales to use during testing
 
     im_scale = float(target_size) / float(im_size_min)
     # Prevent the biggest axis from being more than MAX_SIZE

@@ -33,8 +33,9 @@ def prepare_roidb(imdb):
         max_overlaps = gt_overlaps.max(axis=1)
         # gt class that had the max overlap
         max_classes = gt_overlaps.argmax(axis=1)
-        roidb[i]['max_classes'] = max_classes
-        roidb[i]['max_overlaps'] = max_overlaps
+        roidb[i]['max_classes'] = max_classes   ## gt class that had the max overlap (columns)
+        roidb[i]['max_overlaps'] = max_overlaps ## max overlap with gt over classes (columns)
+
         # sanity checks
         # max overlap of 0 => class should be zero (background)
         zero_inds = np.where(max_overlaps == 0)[0]
@@ -58,7 +59,7 @@ def add_bbox_regression_targets(roidb):
         roidb[im_i]['bbox_targets'] = \
                 _compute_targets(rois, max_overlaps, max_classes)
 
-    if cfg.TRAIN.BBOX_NORMALIZE_TARGETS_PRECOMPUTED:
+    if cfg.TRAIN.BBOX_NORMALIZE_TARGETS_PRECOMPUTED: ## RPN can only use precomputed normalization because there are no fixed statistics to compute a priori
         # Use fixed / precomputed "means" and "stds" instead of empirical values
         means = np.tile(
                 np.array(cfg.TRAIN.BBOX_NORMALIZE_MEANS), (num_classes, 1))
@@ -104,17 +105,22 @@ def add_bbox_regression_targets(roidb):
 
     # These values will be needed for making predictions
     # (the predicts will need to be unnormalized and uncentered)
-    return means.ravel(), stds.ravel()
+    return means.ravel(), stds.ravel() ## Return a contiguous flattened array
 
 def _compute_targets(rois, overlaps, labels):
     """Compute bounding-box regression targets for an image."""
+    """
+        overlaps: max_overlaps of rois
+        labels: max_classes of rois
+    """
+
     # Indices of ground-truth ROIs
     gt_inds = np.where(overlaps == 1)[0]
     if len(gt_inds) == 0:
         # Bail if the image has no ground-truth ROIs
         return np.zeros((rois.shape[0], 5), dtype=np.float32)
     # Indices of examples for which we try to make predictions
-    ex_inds = np.where(overlaps >= cfg.TRAIN.BBOX_THRESH)[0]
+    ex_inds = np.where(overlaps >= cfg.TRAIN.BBOX_THRESH)[0] ## e.g., 0.5
 
     # Get IoU overlap between each ex ROI and gt ROI
     ex_gt_overlaps = bbox_overlaps(
