@@ -370,7 +370,7 @@ layer {
   top: "conv5_3"
 }
 
-#========= RPN ============
+#===================== RPN =================================
 
 layer {
   name: "rpn_conv/3x3"
@@ -417,16 +417,18 @@ layer {
   param { lr_mult: 2.0 }
   convolution_param {
     num_output: 48   # 4 * 12(anchors)
-    kernel_size: 1 pad: 0 stride: 1
+    kernel_size: 1 
+    pad: 0 
+    stride: 1
     weight_filler { type: "gaussian" std: 0.01 }
     bias_filler { type: "constant" value: 0 }
   }
 }
 
 layer {
-   bottom: "rpn_cls_score"
-   top: "rpn_cls_score_reshape"
-   name: "rpn_cls_score_reshape"
+   bottom: "rpn_cls_score"        ## e.g., [N, 2*A, 14, 14]
+   top: "rpn_cls_score_reshape"   ## e.g., [N, 2, A*14, 14]
+   name: "rpn_cls_score_reshape"  
    type: "Reshape"
    reshape_param { shape { dim: 0 dim: 2 dim: -1 dim: 0 } }
 }
@@ -438,10 +440,10 @@ layer {
   bottom: 'gt_boxes'
   bottom: 'im_info'
   bottom: 'data'
-  top: 'rpn_labels'
-  top: 'rpn_bbox_targets'
-  top: 'rpn_bbox_inside_weights'
-  top: 'rpn_bbox_outside_weights'
+  top: 'rpn_labels'               ## [1, 1, A * height, width], used for rpn_loss_cls
+  top: 'rpn_bbox_targets'         ## [1, A * 4, height, width], used for rpn_loss_bbox
+  top: 'rpn_bbox_inside_weights'  ## [1, A * 4, height, width], used for rpn_loss_bbox
+  top: 'rpn_bbox_outside_weights' ## [1, A * 4, height, width], used for rpn_loss_bbox
   python_param {
     module: 'rpn.anchor_target_layer'
     layer: 'AnchorTargetLayer'
@@ -449,11 +451,15 @@ layer {
   }
 }
 
+
+## SoftmaxWithLoss: bottom Blob
+      bottom[0]: (N, C, H, W), the predictions x
+      bottom[1]: (N, 1, H, W), the labels l
 layer {
   name: "rpn_loss_cls"
   type: "SoftmaxWithLoss"
-  bottom: "rpn_cls_score_reshape"
-  bottom: "rpn_labels"
+  bottom: "rpn_cls_score_reshape"   ## [N, 2, A*14, 14]
+  bottom: "rpn_labels"              ## [1, 1, A * height, width]
   propagate_down: 1
   propagate_down: 0
   top: "rpn_cls_loss"
@@ -464,11 +470,15 @@ layer {
   }
 }
 
+## SmoothL1Loss:
+##    f(x) = 0.5 * (sigma * x)^2          if |x| < 1 / sigma / sigma
+##           |x| - 0.5 / sigma / sigma    otherwise
+##    d := w_out * SmoothL1(w_in * (b0 - b1))
 layer {
   name: "rpn_loss_bbox"
   type: "SmoothL1Loss"
-  bottom: "rpn_bbox_pred"
-  bottom: "rpn_bbox_targets"
+  bottom: "rpn_bbox_pred"     ## [dx,dy,dw,dh]
+  bottom: "rpn_bbox_targets"  ## [dx,dy,dw,dh]
   bottom: 'rpn_bbox_inside_weights'
   bottom: 'rpn_bbox_outside_weights'
   top: "rpn_loss_bbox"
@@ -538,6 +548,7 @@ layer {
     spatial_scale: 0.0625 # 1/16
   }
 }
+
 layer {
   name: "fc6"
   type: "InnerProduct"
@@ -615,7 +626,7 @@ layer {
     lr_mult: 2
   }
   inner_product_param {
-    num_output: 324
+    num_output: 324 ## 81*4
     weight_filler {
       type: "gaussian"
       std: 0.001

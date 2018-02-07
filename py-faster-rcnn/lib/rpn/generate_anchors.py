@@ -51,7 +51,7 @@ def generate_anchors(base_size=16, ratios=[0.5, 1, 2],
                          for i in xrange(ratio_anchors.shape[0])])
     return anchors
 
-def _whctrs(anchor):
+def _whctrs(anchor): ## [x1, y1, x2, y2] ==> [w, h, c_x, c_y]
     """
     Return width, height, x center, and y center for an anchor (window).
     """

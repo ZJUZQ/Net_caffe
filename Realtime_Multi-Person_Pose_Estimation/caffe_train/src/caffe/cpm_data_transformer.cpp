@@ -560,10 +560,11 @@ void CPMDataTransformer<Dtype>::Transform_nv(const Datum& datum, Dtype* transfor
     //LOG(INFO) << meta.joint_self.joints.size();
     //LOG(INFO) << meta.joint_self.joints[0];
     
+    // add by zhou
     cv::Mat img_tmp4 = img_aug.clone();
     as.flip_updown = augmentation_flipUpdown(img_tmp4, img_aug, mask_miss_aug, mask_all_aug, meta, mode);
     
-    augmentation_gaussianblur(img_aug);
+    augmentation_gaussianblur(img_aug); // add by zhou
 
     if(param_.visualize()) 
       visualize(img_aug, meta, as);
@@ -741,7 +742,7 @@ bool CPMDataTransformer<Dtype>::augmentation_flipUpdown(Mat& img_src, Mat& img_a
   bool doflip;
   if(param_.aug_way() == "rand"){ // default
     float dice = static_cast <float> (rand()) / static_cast <float> (RAND_MAX);
-    doflip = (dice <= param_.flip_prob());
+    doflip = (dice <= param_.flip_prob()); //default = 0.5
   }
   else {
     doflip = 0;

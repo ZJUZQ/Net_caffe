@@ -21,7 +21,7 @@ layer {
     center_perterb_max: 40
     do_clahe: false
     do_flip_updown: false
-    num_parts: 56
+    num_parts: 56 ## joints(+bg) + vecs * 
     np_in_lmdb: 17
   }
 }

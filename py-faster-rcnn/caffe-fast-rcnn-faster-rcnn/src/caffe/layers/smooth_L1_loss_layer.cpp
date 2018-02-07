@@ -51,7 +51,7 @@ void SmoothL1LossLayer<Dtype>::Reshape(
 template <typename Dtype>
 void SmoothL1LossLayer<Dtype>::Forward_cpu(const vector<Blob<Dtype>*>& bottom,
     const vector<Blob<Dtype>*>& top) {
-  NOT_IMPLEMENTED;
+  NOT_IMPLEMENTED; // only implemented gpu
 }
 
 template <typename Dtype>

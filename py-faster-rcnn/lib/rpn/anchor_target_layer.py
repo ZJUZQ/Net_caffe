@@ -31,9 +31,9 @@ class AnchorTargetLayer(caffe.Layer):
 
     def setup(self, bottom, top):
         layer_params = yaml.load(self.param_str_)
-        anchor_scales = layer_params.get('scales', (8, 16, 32))
-        self._anchors = generate_anchors(scales=np.array(anchor_scales))
-        self._num_anchors = self._anchors.shape[0]
+        anchor_scales = layer_params.get('scales', (8, 16, 32)) ## input: [4, 8, 16, 32]
+        self._anchors = generate_anchors(scales=np.array(anchor_scales)) 
+        self._num_anchors = self._anchors.shape[0]  ## 12
         self._feat_stride = layer_params['feat_stride']
 
         if DEBUG:
@@ -54,18 +54,19 @@ class AnchorTargetLayer(caffe.Layer):
         # allow boxes to sit over the edge by a small amount
         self._allowed_border = layer_params.get('allowed_border', 0)
 
-        height, width = bottom[0].data.shape[-2:]
+        height, width = bottom[0].data.shape[-2:]   ## bottom[0], rpn_cls_score [N, 12*4, H, W]
         if DEBUG:
             print 'AnchorTargetLayer: height', height, 'width', width
 
-        A = self._num_anchors
-        # rpn_labels
+        A = self._num_anchors   ## A = 12 = len(anchor_ratios)*len(anchor_scales)
+        
+        # rpn_labels, used for rpn_loss_cls
         top[0].reshape(1, 1, A * height, width)
-        # rpn_bbox_targets
+        # rpn_bbox_targets, used for rpn_loss_bbox
         top[1].reshape(1, A * 4, height, width)
-        # rpn_bbox_inside_weights
+        # rpn_bbox_inside_weights, used for rpn_loss_bbox
         top[2].reshape(1, A * 4, height, width)
-        # rpn_bbox_outside_weights
+        # rpn_bbox_outside_weights, used for rpn_loss_bbox
         top[3].reshape(1, A * 4, height, width)
 
     def forward(self, bottom, top):
@@ -144,7 +145,8 @@ class AnchorTargetLayer(caffe.Layer):
         gt_argmax_overlaps = overlaps.argmax(axis=0)
         gt_max_overlaps = overlaps[gt_argmax_overlaps,
                                    np.arange(overlaps.shape[1])]
-        gt_argmax_overlaps = np.where(overlaps == gt_max_overlaps)[0]
+        ## since may be multi boxes has the same gt_max_overlaps[i] with gt_boxes[i], find all of them
+        gt_argmax_overlaps = np.where(overlaps == gt_max_overlaps)[0] ## compare each line of overlaps with gt_max_overlaps
 
         if not cfg.TRAIN.RPN_CLOBBER_POSITIVES:
             # assign bg labels first so that positive labels can clobber them
@@ -179,10 +181,11 @@ class AnchorTargetLayer(caffe.Layer):
                 #len(bg_inds), len(disable_inds), np.sum(labels == 0))
 
         bbox_targets = np.zeros((len(inds_inside), 4), dtype=np.float32)
-        bbox_targets = _compute_targets(anchors, gt_boxes[argmax_overlaps, :])
+        ## compute targets deltas [dx, dy, dw, dh]
+        bbox_targets = _compute_targets(anchors, gt_boxes[argmax_overlaps, :])  ## two input has the same num
 
         bbox_inside_weights = np.zeros((len(inds_inside), 4), dtype=np.float32)
-        bbox_inside_weights[labels == 1, :] = np.array(cfg.TRAIN.RPN_BBOX_INSIDE_WEIGHTS)
+        bbox_inside_weights[labels == 1, :] = np.array(cfg.TRAIN.RPN_BBOX_INSIDE_WEIGHTS) ## (1.0, 1.0, 1.0, 1.0)
 
         bbox_outside_weights = np.zeros((len(inds_inside), 4), dtype=np.float32)
         if cfg.TRAIN.RPN_POSITIVE_WEIGHT < 0:
@@ -193,10 +196,8 @@ class AnchorTargetLayer(caffe.Layer):
         else:
             assert ((cfg.TRAIN.RPN_POSITIVE_WEIGHT > 0) &
                     (cfg.TRAIN.RPN_POSITIVE_WEIGHT < 1))
-            positive_weights = (cfg.TRAIN.RPN_POSITIVE_WEIGHT /
-                                np.sum(labels == 1))
-            negative_weights = ((1.0 - cfg.TRAIN.RPN_POSITIVE_WEIGHT) /
-                                np.sum(labels == 0))
+            positive_weights = (cfg.TRAIN.RPN_POSITIVE_WEIGHT / np.sum(labels == 1))            ## p * 1 / {num positives}
+            negative_weights = ((1.0 - cfg.TRAIN.RPN_POSITIVE_WEIGHT) / np.sum(labels == 0))    ## (1 - p) / {num negative}
         bbox_outside_weights[labels == 1, :] = positive_weights
         bbox_outside_weights[labels == 0, :] = negative_weights
 
@@ -233,7 +234,7 @@ class AnchorTargetLayer(caffe.Layer):
         top[0].reshape(*labels.shape)
         top[0].data[...] = labels
 
-        # bbox_targets
+        # bbox_targets [dx, dy, dw, dh]
         bbox_targets = bbox_targets \
             .reshape((1, height, width, A * 4)).transpose(0, 3, 1, 2)
         top[1].reshape(*bbox_targets.shape)

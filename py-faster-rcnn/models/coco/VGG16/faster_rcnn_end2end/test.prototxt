@@ -384,7 +384,7 @@ layer {
   top: "conv5_3"
 }
 
-#========= RPN ============
+#=========================== RPN ================================
 
 layer {
   name: "rpn_conv/3x3"
@@ -436,18 +436,19 @@ layer {
   }
 }
 layer {
-   bottom: "rpn_cls_score"
-   top: "rpn_cls_score_reshape"
+   bottom: "rpn_cls_score"        ## e.g., [1, 24, 14, 14]
+   top: "rpn_cls_score_reshape"   ## e.g., [1, 2, 12*14, 14]
    name: "rpn_cls_score_reshape"
    type: "Reshape"
    reshape_param { shape { dim: 0 dim: 2 dim: -1 dim: 0 } }
 }
+  ## Reshape: 0 means “copy the respective dimension of the bottom layer”
 
 #========= RoI Proposal ============
 
 layer {
   name: "rpn_cls_prob"
-  type: "Softmax"
+  type: "Softmax"                 ## default to perform the softmax along axis 1
   bottom: "rpn_cls_score_reshape"
   top: "rpn_cls_prob"
 }
@@ -455,7 +456,7 @@ layer {
   name: 'rpn_cls_prob_reshape'
   type: 'Reshape'
   bottom: 'rpn_cls_prob'
-  top: 'rpn_cls_prob_reshape'
+  top: 'rpn_cls_prob_reshape'     ## e.g., [1, 24, 14, 14]
   reshape_param { shape { dim: 0 dim: 24 dim: -1 dim: 0 } }
 }
 layer {

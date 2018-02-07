@@ -30,8 +30,8 @@ class ProposalLayer(caffe.Layer):
         layer_params = yaml.load(self.param_str_)
 
         self._feat_stride = layer_params['feat_stride']
-        anchor_scales = layer_params.get('scales', (8, 16, 32))
-        self._anchors = generate_anchors(scales=np.array(anchor_scales))
+        anchor_scales = layer_params.get('scales', (8, 16, 32)) ## input is [4, 8, 16, 32] 
+        self._anchors = generate_anchors(scales=np.array(anchor_scales)) ## [[x1, y1, x2, y2], ...]
         self._num_anchors = self._anchors.shape[0]
 
         if DEBUG:
@@ -52,8 +52,8 @@ class ProposalLayer(caffe.Layer):
         # Algorithm:
         #
         # for each (H, W) location i
-        #   generate A anchor boxes centered on cell i
-        #   apply predicted bbox deltas at cell i to each of the A anchors
+        #       generate A anchor boxes centered on cell i
+        #       apply predicted bbox deltas at cell i to each of the A anchors
         # clip predicted boxes to image
         # remove predicted boxes with either height or width < threshold
         # sort all (proposal, score) pairs by score from highest to lowest
@@ -87,21 +87,22 @@ class ProposalLayer(caffe.Layer):
         if DEBUG:
             print 'score map size: {}'.format(scores.shape)
 
-        # Enumerate all shifts
+        # Enumerate all shifts, clip boxes to input_data's size
         shift_x = np.arange(0, width) * self._feat_stride
         shift_y = np.arange(0, height) * self._feat_stride
         shift_x, shift_y = np.meshgrid(shift_x, shift_y)
         shifts = np.vstack((shift_x.ravel(), shift_y.ravel(),
                             shift_x.ravel(), shift_y.ravel())).transpose()
 
-        # Enumerate all shifted anchors:
+        # Enumerate all shifted anchors: 
         #
         # add A anchors (1, A, 4) to
         # cell K shifts (K, 1, 4) to get
         # shift anchors (K, A, 4)
         # reshape to (K*A, 4) shifted anchors
-        A = self._num_anchors
-        K = shifts.shape[0]
+        
+        A = self._num_anchors   ## len(anchor_ratios) * len(anchor_scales), A = 12
+        K = shifts.shape[0]     ## K = width*height
         anchors = self._anchors.reshape((1, A, 4)) + \
                   shifts.reshape((1, K, 4)).transpose((1, 0, 2))
         anchors = anchors.reshape((K * A, 4))
@@ -109,7 +110,7 @@ class ProposalLayer(caffe.Layer):
         # Transpose and reshape predicted bbox transformations to get them
         # into the same order as the anchors:
         #
-        # bbox deltas will be (1, 4 * A, H, W) format
+        # bbox deltas will be (1, 4 * A, H, W) format, A = 12
         # transpose to (1, H, W, 4 * A)
         # reshape to (1 * H * W * A, 4) where rows are ordered by (h, w, a)
         # in slowest to fastest order
@@ -117,13 +118,13 @@ class ProposalLayer(caffe.Layer):
 
         # Same story for the scores:
         #
-        # scores are (1, A, H, W) format
+        # scores are (1, A, H, W) format of fg sclors
         # transpose to (1, H, W, A)
         # reshape to (1 * H * W * A, 1) where rows are ordered by (h, w, a)
         scores = scores.transpose((0, 2, 3, 1)).reshape((-1, 1))
 
         # Convert anchors into proposals via bbox transformations
-        proposals = bbox_transform_inv(anchors, bbox_deltas)
+        proposals = bbox_transform_inv(anchors, bbox_deltas) ## anchors and bbox_deltas has the same shape
 
         # 2. clip predicted boxes to image
         proposals = clip_boxes(proposals, im_info[:2])
@@ -155,8 +156,9 @@ class ProposalLayer(caffe.Layer):
         # Our RPN implementation only supports a single input image, so all
         # batch inds are 0
         batch_inds = np.zeros((proposals.shape[0], 1), dtype=np.float32)
+
         blob = np.hstack((batch_inds, proposals.astype(np.float32, copy=False)))
-        top[0].reshape(*(blob.shape))
+        top[0].reshape(*(blob.shape))   ## (n, x1, y1, x2, y2)
         top[0].data[...] = blob
 
         # [Optional] output scores blob

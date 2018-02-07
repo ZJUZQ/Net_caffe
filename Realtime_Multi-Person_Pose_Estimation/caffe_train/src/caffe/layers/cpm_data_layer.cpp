@@ -92,6 +92,7 @@ void CPMDataLayer<Dtype>::DataLayerSetUp(const vector<Blob<Dtype>*>& bottom,
     this->transformed_label_.Reshape(1, 2*(num_parts+1), height/stride, width/stride);
     /*
     np = 56 = (18 + 19x2) for coco
+    
     [0, np-1] * grid_y * grid_x       :     weight (np)
     np * grid_y * grid_x              :     backaground (1)
     [np+1, np+38] * grid_y * grid_x   :     vecMaps (19x2)
