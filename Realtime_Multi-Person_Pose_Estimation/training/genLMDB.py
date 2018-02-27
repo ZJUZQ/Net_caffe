@@ -26,11 +26,12 @@ def writeLMDB(datasets, lmdb_path, validation):
 			numSample = len(data)
 			#print data
 			print numSample
-		elif(datasets[d] == "COCO"):
+		#elif(datasets[d] == "COCO"):
+		elif 'COCO' in datasets[d]:
 			print datasets[d]
-			with open('dataset/COCO/json/COCO.json') as data_file:
+			with open('dataset/COCO/json/'+datasets[d]+'.json') as data_file:
 				data_this = json.load(data_file)
-				data_this = data_this['root']
+				#data_this = data_this['root']
 				data = data + data_this
 			numSample = len(data)
 			#print data
