@@ -13,6 +13,7 @@ import argparse
 from matplotlib.path import Path
 sys.path.insert(0, '/home/zq/dataset/COCO/coco/PythonAPI/')
 from pycocotools.coco import COCO
+from pycocotools import mask as maskutils
 
 ## transform coco annotations
 ## input: 
@@ -59,6 +60,11 @@ def annsTransform(datasetRootPath, annFile):
 		anns_image[image_index]['annorect'][p_index]['area'] = anns[i]['area'] 					## float
 		anns_image[image_index]['annorect'][p_index]['id'] = anns[i]['id'] 						## int
 		anns_image[image_index]['annorect'][p_index]['iscrowd'] = anns[i]['iscrowd'] 			## 0 or 1
+		if anns[i]['iscrowd'] == 1: ## RLE is used, convert to binary mask
+			assert type(anns[i]['segmentation']) == dict 
+			anns_image[image_index]['annorect'][p_index]['segmentation'] = coco.annToMask(anns[i])
+		else: ## [polygons] are used
+			assert type(anns[i]['segmentation']) == list 
 		"""
 			"keypoints" is a length 3k array where k is the total number of keypoints defined for the 
 			category. Each keypoint has a 0-indexed location x,y and a visibility flag v defined as 
@@ -92,7 +98,7 @@ def writeCOCOMask(coco, annsImage, dataType, year, datasetRootPath):
 		if dataType == 'val2014':
 			img_path  = 'dataset/COCO/images/{0}/COCO_{0}_{1:012d}.jpg'.format(dataType, annsImage[i]['image_id'])
 		elif dataType == 'train2017':
-			img_path = 'datgaset/COCO/images/{0}/{1:012d}.jpg'.format(dataType, annsImage[i]['image_id'])
+			img_path = 'dataset/COCO/images/{0}/{1:012d}.jpg'.format(dataType, annsImage[i]['image_id'])
 		
 		img_name1 = 'dataset/COCO/mask{0}/{1}_mask_all_{2:012d}.png'.format(year, dataType, annsImage[i]['image_id'])
 		img_name2 = 'dataset/COCO/mask{0}/{1}_mask_miss_{2:012d}.png'.format(year, dataType, annsImage[i]['image_id'])
@@ -110,29 +116,31 @@ def writeCOCOMask(coco, annsImage, dataType, year, datasetRootPath):
 			mask_miss = np.zeros((h, w), dtype=np.bool)
 			flag = 0 
 			for p in range(len(annsImage[i]['annorect'])):
-				if(annsImage[i]['annorect'][p]['iscrowd'] == 1): ## iscrowd == 1, segmentation is RLE
-					mask_crowd = np.array(coco.decode(annsImage[i]['annorect'][p]['segmentation']), dtype=np.bool)
+				if annsImage[i]['annorect'][p]['iscrowd'] == 1: 
+					## iscrowd == 1, segmentation is RLE, and has been converted to binary mask
+					mask_crowd = np.array(annsImage[i]['annorect'][p]['segmentation'], dtype=np.bool)
 					temp = np.logical_and(mask_all, mask_crowd)
 					mask_crowd = mask_crowd - temp
 					flag = flag + 1
 					annsImage[i]['mask_crowd'] = mask_crowd
 					continue
-				else: ## iscrowd == 0
-					polygon = annsImage[i]['annorect'][p]['segmentation'][0] ## Note that a single object (iscrowd=0) may require multiple polygons, for example if occluded.
-				
+				## when iscrowd == 0, polygons is used
 				X, Y = np.meshgrid(range(w), range(h))
 				X, Y = X.flatten(), Y.flatten()
 				points = np.vstack((X, Y)).T
-				polygon = np.array(list(polygon))
-				polygon = polygon.reshape((-1, 2)) ## with shape Nx2
-				#print polygon
-				path = Path(polygon)
-				mask = path.contains_points(points)
-				mask = mask.reshape(h, w) ## binary array
-				mask_all = np.logical_or(mask, mask_all)
 
-				if(annsImage[i]['annorect'][p]['num_keypoints'] <= 0):
-					mask_miss = np.logical_or(mask, mask_miss)
+				for ii in range(len(annsImage[i]['annorect'][p]['segmentation'])):
+					seg = annsImage[i]['annorect'][p]['segmentation'][ii]
+					polygon = np.array(list(seg))
+					polygon = polygon.reshape((-1, 2)) ## with shape Nx2
+					#print polygon
+					path = Path(polygon)
+					mask = path.contains_points(points)
+					mask = mask.reshape(h, w) ## binary array
+					mask_all = np.logical_or(mask, mask_all)
+
+					if(annsImage[i]['annorect'][p]['num_keypoints'] <= 0):
+						mask_miss = np.logical_or(mask, mask_miss)
 
 			if flag == 1:
 				## crowd segmentation is added to both mask_miss and mask_all
@@ -208,8 +216,8 @@ def genJSON(annsImage, dataType, datasetRootPath):
 							 annsImage[i]['annorect'][p]['bbox'][1] + annsImage[i]['annorect'][p]['bbox'][3]/2.0]
 			flag = 0 
 			for k in range(len(prev_center)):
-				dist = prev_center[k][0:2] - person_center
-				if norm(dist) < prev_center[k][2] * 0.3 :
+				dist = np.array(prev_center[k][0:2]) - np.array(person_center)
+				if np.linalg.norm(dist) < prev_center[k][2] * 0.3 :
 					flag = 1 
 					break 
 			if flag == 1:
