@@ -1,0 +1,16 @@
+average_loss: 25
+base_lr: 0.01
+display: 100
+gamma: 0.0001
+iter_size: 1
+lr_policy: "inv"
+max_iter: 100000
+momentum: 0.9
+snapshot: 2500
+snapshot_prefix: "snapshot"
+test_initialization: false
+test_interval: 500
+test_iter: 100
+test_net: "model/lenet_test.prototxt"
+train_net: "model/lenet_train.prototxt"
+weight_decay: 0.0005
