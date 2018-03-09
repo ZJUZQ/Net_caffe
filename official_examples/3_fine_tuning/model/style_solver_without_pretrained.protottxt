@@ -1,0 +1,14 @@
+train_net: "model/train_style_net_without_pretrained.prototxt"
+base_lr: 0.001
+display: 1000
+max_iter: 100000
+lr_policy: "step"
+gamma: 0.1
+momentum: 0.9
+weight_decay: 0.0005
+stepsize: 20000
+snapshot: 5000
+snapshot_prefix: "models"
+solver_mode: CPU
+iter_size: 1
+type: "SGD"

@@ -1,0 +1,2 @@
+/home/zq/Net_caffe/official_examples/brewing_logistic_regression/hdf5_data/train.h5
+/home/zq/Net_caffe/official_examples/brewing_logistic_regression/hdf5_data/train.h5

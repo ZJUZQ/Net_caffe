@@ -63,8 +63,8 @@ class CaffeSolver:
         """
         Export solver parameters to INPUT "filepath". Sorted alphabetically.
         """
-        f = open(filepath, 'w')
-        for key, value in sorted(self.sp.items()):
-            if not(type(value) is str):
-                raise TypeError('All solver parameters must be strings')
-            f.write('%s: %s\n' % (key, value))
+        with open(filepath, 'w') as f:
+            for key, value in sorted(self.sp.items()):
+                if not(type(value) is str):
+                    raise TypeError('All solver parameters must be strings')
+                f.write('%s: %s\n' % (key, value))

@@ -6,6 +6,6 @@ TRAIN:
   RPN_POSITIVE_OVERLAP: 0.7
   RPN_BATCHSIZE: 256
   PROPOSAL_METHOD: gt
-  BG_THRESH_LO: 0.0
+  BG_THRESH_LO: 0.0 # for selecting background RoIs as those within [BG_THRESH_LO, BG_THRESH_HI)
 TEST:
   HAS_RPN: True

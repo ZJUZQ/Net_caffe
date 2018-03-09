@@ -54,8 +54,6 @@ class coco(imdb):
         # name, paths
         self._year = year
         self._image_set = image_set
-
-        ## under py-faster-rcnn/data/, established a symlink folder 'coco' to path/to/coco by ( ln -s /path/to/coco coco )
         self._data_path = osp.join(cfg.DATA_DIR, 'coco')
         # load COCO API, classes, class <-> id mappings
         self._COCO = COCO(self._get_ann_file())
@@ -65,7 +63,6 @@ class coco(imdb):
         self._class_to_coco_cat_id = dict(zip([c['name'] for c in cats],
                                               self._COCO.getCatIds()))
         self._image_index = self._load_image_set_index()
-        
         # Default to roidb handler
         self.set_proposal_method('selective_search')
         self.competition_mode(False)

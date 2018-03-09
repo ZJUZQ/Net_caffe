@@ -21,7 +21,7 @@ from fast_rcnn.config import cfg
 
 class pascal_voc(imdb):
     def __init__(self, image_set, year, devkit_path=None):
-        imdb.__init__(self, 'voc_' + year + '_' + image_set)
+        imdb.__init__(self, name='voc_' + year + '_' + image_set)
         self._year = year
         self._image_set = image_set
         self._devkit_path = self._get_default_path() if devkit_path is None \
@@ -104,7 +104,8 @@ class pascal_voc(imdb):
             return roidb
 
         gt_roidb = [self._load_pascal_annotation(index)
-                    for index in self.image_index]
+                    for index in self.image_index] # list of dict
+                    
         with open(cache_file, 'wb') as fid:
             cPickle.dump(gt_roidb, fid, cPickle.HIGHEST_PROTOCOL)
         print 'wrote gt roidb to {}'.format(cache_file)
@@ -133,6 +134,7 @@ class pascal_voc(imdb):
             roidb = imdb.merge_roidbs(gt_roidb, ss_roidb)
         else:
             roidb = self._load_selective_search_roidb(None)
+            
         with open(cache_file, 'wb') as fid:
             cPickle.dump(roidb, fid, cPickle.HIGHEST_PROTOCOL)
         print 'wrote ss roidb to {}'.format(cache_file)

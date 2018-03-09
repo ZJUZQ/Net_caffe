@@ -19,7 +19,7 @@ import google.protobuf as pb2
 
 class SolverWrapper(object):
     """A simple wrapper around Caffe's solver.
-    This wrapper gives us control over he snapshotting process, which we
+    This wrapper gives us control over the snapshotting process, which we
     use to unnormalize the learned bounding-box regression weights.
     """
 
@@ -50,7 +50,7 @@ class SolverWrapper(object):
         with open(solver_prototxt, 'rt') as f:
             pb2.text_format.Merge(f.read(), self.solver_param)
 
-        self.solver.net.layers[0].set_roidb(roidb)
+        self.solver.net.layers[0].set_roidb(roidb) # Set the roidb to be used by this layer during training
 
     def snapshot(self):
         """Take a snapshot of the network after unnormalizing the learned
@@ -119,13 +119,24 @@ def get_training_roidb(imdb):
         print 'done'
 
     print 'Preparing training data...'
-    rdl_roidb.prepare_roidb(imdb)
+    rdl_roidb.prepare_roidb(imdb) # Enrich the imdb's roidb by adding some derived quantities that are useful for training
     print 'done'
 
     return imdb.roidb
 
 def filter_roidb(roidb):
     """Remove roidb entries that have no usable RoIs."""
+
+    # roidb is a list of dictionaries, each with the following keys:
+    #   boxes
+    #   gt_overlaps
+    #   gt_classes
+    #   flipped
+    #   imaeg
+    #   width
+    #   height
+    #   max_classes
+    #   max_overlaps
 
     def is_valid(entry):
         # Valid images have:

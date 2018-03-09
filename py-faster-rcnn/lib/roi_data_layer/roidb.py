@@ -22,7 +22,14 @@ def prepare_roidb(imdb):
     """
     sizes = [PIL.Image.open(imdb.image_path_at(i)).size
              for i in xrange(imdb.num_images)]
+
     roidb = imdb.roidb
+    # roidb is a list of dictionaries, each with the following keys:
+        #   boxes
+        #   gt_overlaps
+        #   gt_classes
+        #   flipped
+        
     for i in xrange(len(imdb.image_index)):
         roidb[i]['image'] = imdb.image_path_at(i)
         roidb[i]['width'] = sizes[i][0]
@@ -46,6 +53,7 @@ def prepare_roidb(imdb):
 
 def add_bbox_regression_targets(roidb):
     """Add information needed to train bounding-box regressors."""
+
     assert len(roidb) > 0
     assert 'max_classes' in roidb[0], 'Did you call prepare_roidb first?'
 
@@ -57,14 +65,14 @@ def add_bbox_regression_targets(roidb):
         max_overlaps = roidb[im_i]['max_overlaps']
         max_classes = roidb[im_i]['max_classes']
         roidb[im_i]['bbox_targets'] = \
-                _compute_targets(rois, max_overlaps, max_classes)
+                _compute_targets(rois, overlaps=max_overlaps, labels=max_classes) # Compute bounding-box regression targets for an image
 
     if cfg.TRAIN.BBOX_NORMALIZE_TARGETS_PRECOMPUTED: ## RPN can only use precomputed normalization because there are no fixed statistics to compute a priori
         # Use fixed / precomputed "means" and "stds" instead of empirical values
         means = np.tile(
-                np.array(cfg.TRAIN.BBOX_NORMALIZE_MEANS), (num_classes, 1))
+                np.array(cfg.TRAIN.BBOX_NORMALIZE_MEANS), (num_classes, 1)) # shape = (num_classes, 4)
         stds = np.tile(
-                np.array(cfg.TRAIN.BBOX_NORMALIZE_STDS), (num_classes, 1))
+                np.array(cfg.TRAIN.BBOX_NORMALIZE_STDS), (num_classes, 1)) # shape = (num_classes, 4)
     else:
         # Compute values needed for means and stds
         # var(x) = E(x^2) - E(x)^2
@@ -112,13 +120,18 @@ def _compute_targets(rois, overlaps, labels):
     """
         overlaps: max_overlaps of rois
         labels: max_classes of rois
-    """
 
+        return:
+            [[cls, dx, dy, dw, dh]
+             ...
+            ]
+    """
     # Indices of ground-truth ROIs
     gt_inds = np.where(overlaps == 1)[0]
     if len(gt_inds) == 0:
-        # Bail if the image has no ground-truth ROIs
-        return np.zeros((rois.shape[0], 5), dtype=np.float32)
+        # Fail if the image has no ground-truth ROIs
+        return np.zeros((rois.shape[0], 5), dtype=np.float32) 
+
     # Indices of examples for which we try to make predictions
     ex_inds = np.where(overlaps >= cfg.TRAIN.BBOX_THRESH)[0] ## e.g., 0.5
 
@@ -135,5 +148,5 @@ def _compute_targets(rois, overlaps, labels):
 
     targets = np.zeros((rois.shape[0], 5), dtype=np.float32)
     targets[ex_inds, 0] = labels[ex_inds]
-    targets[ex_inds, 1:] = bbox_transform(ex_rois, gt_rois)
+    targets[ex_inds, 1:] = bbox_transform(ex_rois, gt_rois) # compute [dx, dy, dw, dh]
     return targets

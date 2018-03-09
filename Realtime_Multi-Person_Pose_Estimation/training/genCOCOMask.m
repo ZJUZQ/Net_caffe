@@ -2,16 +2,16 @@
 %%          mask_all:   all segmentations of peoples in a image (num_keypoints >= 0)
 %%          maks_miss:  those segmentations of peoples in a image with (num_keypoints == 0) 
 
-addpath('dataset/COCO/coco/MatlabAPI/');
+addpath('/home/zq/dataset/COCO/coco/MatlabAPI/');
 addpath('../testing/util');
 
-mkdir('dataset/COCO/mask2014')
+mkdir('/home/zq/dataset/COCO/mask2017')
 vis = 0;
 
-for mode = 0:1
+for mode = 1
     
     if mode == 1 % train
-        load('dataset/COCO/mat/coco_kpt.mat');
+        load('/home/zq/dataset/COCO/mat/coco_kpt.mat');
     else % validation
         load('dataset/COCO/mat/coco_val.mat');
         coco_kpt = coco_val;
@@ -22,9 +22,9 @@ for mode = 0:1
     
     for i = 1:L
         if mode == 1
-            img_paths = sprintf('images/train2014/COCO_train2014_%012d.jpg', coco_kpt(i).image_id);
-            img_name1 = sprintf('dataset/COCO/mask2014/train2014_mask_all_%012d.png', coco_kpt(i).image_id);
-            img_name2 = sprintf('dataset/COCO/mask2014/train2014_mask_miss_%012d.png', coco_kpt(i).image_id);
+            img_paths = sprintf('images/train2017/%012d.jpg', coco_kpt(i).image_id);
+            img_name1 = sprintf('/home/zq/dataset/COCO/mask2017/train2017_mask_all_%012d.png', coco_kpt(i).image_id);
+            img_name2 = sprintf('/home/zq/dataset/COCO/mask2017/train2017_mask_miss_%012d.png', coco_kpt(i).image_id);
         else
             img_paths = sprintf('images/val2014/COCO_val2014_%012d.jpg', coco_kpt(i).image_id);
             img_name1 = sprintf('dataset/COCO/mask2014/val2014_mask_all_%012d.png', coco_kpt(i).image_id);
@@ -39,7 +39,7 @@ for mode = 0:1
         catch
             display([num2str(i) '/ ' num2str(L)]);
             %joint_all(count).img_paths = RELEASE(i).image_id;
-            [h,w,~] = size(imread(['dataset/COCO/', img_paths]));
+            [h,w,~] = size(imread(['/home/zq/dataset/COCO/', img_paths]));
             mask_all = false(h,w);
             mask_miss = false(h,w);
             flag = 0;
@@ -78,9 +78,9 @@ for mode = 0:1
             coco_kpt(i).mask_miss = mask_miss;
             
             if mode == 1
-                img_name = sprintf('dataset/COCO/mask2014/train2014_mask_all_%012d.png', coco_kpt(i).image_id);
+                img_name = sprintf('/home/zq/dataset/COCO/mask2017/train2017_mask_all_%012d.png', coco_kpt(i).image_id);
                 imwrite(mask_all,img_name);
-                img_name = sprintf('dataset/COCO/mask2014/train2014_mask_miss_%012d.png', coco_kpt(i).image_id);
+                img_name = sprintf('/home/zq/dataset/COCO/mask2014/train2014_mask_miss_%012d.png', coco_kpt(i).image_id);
                 imwrite(mask_miss,img_name);
             else
                 img_name = sprintf('dataset/COCO/mask2014/val2014_mask_all_%012d.png', coco_kpt(i).image_id);
@@ -90,7 +90,7 @@ for mode = 0:1
             end
             
             if flag == 1 && vis == 1
-                im = imread(['dataset/COCO/', img_paths]);
+                im = imread(['/home/zq/dataset/COCO/', img_paths]);
                 mapIm = mat2im(mask_all, jet(100), [0 1]);
                 mapIm = mapIm*0.5 + (single(im)/255)*0.5;
                 figure(1),imshow(mapIm);
@@ -109,7 +109,7 @@ for mode = 0:1
     end
     
     if mode == 1 
-        save('coco_kpt_mask.mat', 'coco_kpt', '-v7.3');
+        save('/home/zq/dataset/COCO/mat/coco_kpt_mask.mat', 'coco_kpt', '-v7.3');
     else
         coco_val = coco_kpt;
         save('coco_val_mask.mat', 'coco_val', '-v7.3');

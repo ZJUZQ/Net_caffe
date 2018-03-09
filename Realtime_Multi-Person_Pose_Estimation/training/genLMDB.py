@@ -29,7 +29,7 @@ def writeLMDB(datasets, lmdb_path, validation):
 		#elif(datasets[d] == "COCO"):
 		elif 'COCO' in datasets[d]:
 			print datasets[d]
-			with open('dataset/COCO/json/'+datasets[d]+'.json') as data_file:
+			with open('/home/zqdataset/COCO/json/'+datasets[d]+'.json') as data_file:
 				data_this = json.load(data_file)
 				#data_this = data_this['root']
 				data = data + data_this
@@ -56,7 +56,7 @@ def writeLMDB(datasets, lmdb_path, validation):
 		if "MPI" in data[idx]['dataset']:
 			path_header = 'dataset/MPI/images/'
 		elif "COCO" in data[idx]['dataset']:
-			path_header = '/media/posenas4b/User/zhe/Convolutional-Pose-Machines/training/dataset/COCO/images/'
+			path_header = '/home/dgxuser1/dataset/COCO/images/'
 
 		print os.path.join(path_header, data[idx]['img_paths'])
 		img = cv2.imread(os.path.join(path_header, data[idx]['img_paths']))
@@ -205,5 +205,5 @@ def float2bytes(floats):
 
 if __name__ == "__main__":
 	#writeLMDB(['MPI'], '/home/zhecao/MPI_pose/lmdb', 1)
-	writeLMDB(['COCO'], '/home/zhecao/COCO_kpt/lmdb', 1) 
+	writeLMDB(datasets=['COCO'], lmdb_path='/home/zhecao/COCO_kpt/lmdb', validation=1) 
 

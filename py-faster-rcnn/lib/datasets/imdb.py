@@ -17,7 +17,7 @@ class imdb(object):
     """Image database."""
 
     def __init__(self, name):
-        self._name = name
+        self._name = name 
         self._num_classes = 0
         self._classes = []
         self._image_index = []
@@ -27,7 +27,7 @@ class imdb(object):
         # Use this dict for storing dataset specific config options
         self.config = {}
 
-    @property
+    @property # getter method
     def name(self):
         return self._name
 
@@ -47,12 +47,12 @@ class imdb(object):
     def roidb_handler(self):
         return self._roidb_handler
 
-    @roidb_handler.setter
+    @roidb_handler.setter # setter method of roidb_handler
     def roidb_handler(self, val):
         self._roidb_handler = val
 
     def set_proposal_method(self, method):
-        method = eval('self.' + method + '_roidb') ## eval() 函数用来执行一个字符串表达式，并返回表达式的值
+        method = eval('self.' + method + '_roidb')
         self.roidb_handler = method
 
     @property
@@ -251,3 +251,10 @@ class imdb(object):
     def competition_mode(self, on):
         """Turn competition mode on or off."""
         pass
+
+if __name__ == '__main__':
+    # For testing
+    imdb = imdb()
+    print(imdb.name)
+    print(imdb.roidb_handler)
+    
