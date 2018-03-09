@@ -6,7 +6,7 @@ from utils.blob import im_list_to_blob
 
 
 def get_image_blob(im):
-    """Converts an image into a network input.
+    """Converts an image into a network input. building an image pyramid input built.
 
     Arguments:
         im (ndarray): a color image in BGR order
@@ -37,7 +37,7 @@ def get_image_blob(im):
         processed_ims.append(im)
 
     # Create a blob to hold the input images
-    blob = im_list_to_blob(processed_ims)
+    blob = im_list_to_blob(processed_ims) # Convert a list of images into a network input
 
     return blob, np.array(im_scale_factors)
 

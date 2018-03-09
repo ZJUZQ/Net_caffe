@@ -24,7 +24,7 @@ def _im_detect(net, im, roidb, blob_names=None):
             background as object category 0)
         features (dict of ndarray): {blob name: R x D array of features}
     """
-    im_blob, im_scales = get_image_blob(im)
+    im_blob, im_scales = get_image_blob(im) # Converts an image into a network input. building an image pyramid input built
     assert len(im_scales) == 1, "Only single-image batch implemented"
 
     blobs = {
@@ -74,7 +74,7 @@ def _im_detect(net, im, roidb, blob_names=None):
             means = np.tile(cfg.TRAIN.BBOX_NORMALIZE_MEANS, num_classes)
             box_deltas = box_deltas * stds + means
         boxes = bbox_transform_inv(boxes, box_deltas)
-        boxes = clip_boxes(boxes, im.shape)
+        boxes = clip_boxes(boxes, im.shape) # Clip boxes to image boundaries.
     else:
         # Simply repeat the boxes, once for each class
         boxes = np.tile(boxes, (1, scores.shape[1]))
@@ -133,7 +133,7 @@ def detect_and_exfeat(net, imdb,
         roidb = imdb.roidb[start + i]
 
         _t['im_detect'].tic()
-        boxes, scores, feat_dic = _im_detect(net, im, roidb, blob_names)
+        boxes, scores, feat_dic = _im_detect(net, im, roidb, blob_names) # Detect object classes in an image given object proposals
         _t['im_detect'].toc()
 
         _t['misc'].tic()
@@ -194,7 +194,6 @@ def usegt_and_exfeat(net, imdb,
 
     return all_boxes, all_features
 
-
 def demo_detect(net, filename, blob_name='feat', threshold=0.5):
     """Detect persons in a gallery image and extract their features
 
@@ -209,7 +208,7 @@ def demo_detect(net, filename, blob_name='feat', threshold=0.5):
         features (ndarray): N x D features matrix
     """
     im = cv2.imread(filename)
-    boxes, scores, feat_dic = _im_detect(net, im, None, [blob_name])
+    boxes, scores, feat_dic = _im_detect(net, im, roidb=None, blob_names=[blob_name])
 
     j = 1  # only consider j = 1 (foreground class)
     inds = np.where(scores[:, j] > threshold)[0]

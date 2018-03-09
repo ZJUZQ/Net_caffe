@@ -57,7 +57,7 @@ def main(args):
 
     for gallery_img in gallery_imgs:
         print gallery_img, '...'
-        boxes, features = demo_detect(net, gallery_img,
+        boxes, features = demo_detect(net, filename=gallery_img,
                                       threshold=args.det_thresh)
         if boxes is None:
             print gallery_img, 'no detections'

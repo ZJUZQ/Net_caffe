@@ -27,7 +27,7 @@ def _im_exfeat(net, im, roi, blob_names):
         'im_info': np.array(
             [[im_blob.shape[2], im_blob.shape[3], im_scales[0]]],
             dtype=np.float32),
-        'rois': get_rois_blob(roi, im_scales),
+        'rois': get_rois_blob(roi, im_scales), # R x 5 matrix of RoIs in the image pyramid
     }
 
     # reshape network inputs
@@ -84,7 +84,7 @@ def demo_exfeat(net, filename, roi, blob_name='feat'):
     Arguments:
         net (caffe.Net): trained network
         filename (str): path to a probe image file (jpg or png)
-        roi (list or ndarray): target roi in format [x1, y1, x2, y2, score]
+        roi (list or ndarray): target roi in format [x1, y1, x2, y2]
         blob_name (str): feature blob name. Default 'feat'
 
     Returns:
@@ -93,7 +93,7 @@ def demo_exfeat(net, filename, roi, blob_name='feat'):
     im = cv2.imread(filename)
     roi = np.asarray(roi).astype(np.float32).reshape(1, 4)
 
-    feature = _im_exfeat(net, im, roi, [blob_name])
+    feature = _im_exfeat(net, im, roi, blob_names=[blob_name])
     feature = feature[blob_name].squeeze()
 
     return feature
